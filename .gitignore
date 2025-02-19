@@ -1,0 +1,10 @@
+# Mengabaikan file log
+*.log
+
+# Mengabaikan file temporary
+*.tmp
+
+# Mengabaikan file dan folder yang digunakan oleh IDE
+.vscode/
+.idea/
+results/
