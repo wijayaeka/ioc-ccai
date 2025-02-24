@@ -1,13 +1,13 @@
 import json
 from pathlib import Path
-from transformers import AutoModelForSequenceClassification, AutoTokenizer, TextClassificationPipeline
+from transformers import AutoModelForSequenceClassification, AutoTokenizer, TextClassificationPipeline, pipeline
 
 
 class PredictorTextClassification:
-    def __init__(self, text: str, model_dir="results/model1/hasilmodel"):
+    def __init__(self, text: str, model_dir="results/model2/model_ioc"):
         self.text = text
         self.path = self.get_latest_checkpoint(model_dir)  # Ambil checkpoint terbaru
-        self.mapping_class = json.loads(Path("results/model1/mapping.json").read_text())
+        self.mapping_class = json.loads(Path("results/model2/mapping.json").read_text())
 
     def get_latest_checkpoint(self, model_dir: str) -> str:
         """Mencari checkpoint terbaru berdasarkan angka terbesar."""
@@ -23,10 +23,13 @@ class PredictorTextClassification:
         return self.predict(self.text)
 
     def predict(self, text: str):
-        model = AutoModelForSequenceClassification.from_pretrained(self.path, ignore_mismatched_sizes=True)
+        # model = AutoModelForSequenceClassification.from_pretrained(self.path, ignore_mismatched_sizes=True)
+        # tokenizer = AutoTokenizer.from_pretrained(self.path)
+        model = AutoModelForSequenceClassification.from_pretrained(self.path, ignore_mismatched_sizes=True).to("cuda")
         tokenizer = AutoTokenizer.from_pretrained(self.path)
 
-        pipe = TextClassificationPipeline(model=model, tokenizer=tokenizer, top_k=1)
+        pipe = TextClassificationPipeline(model=model, tokenizer=tokenizer, top_k=1, device=0)
+        print(next(model.parameters()).device)
 
         res = pipe(text)[0][0]
 
@@ -47,6 +50,6 @@ class PredictorTextClassification:
         return result
 
 
-predictor = PredictorTextClassification("Wanita/Jakarta/Informasi jam operasional kantor wilayah Jakarta pada 1 Juni 2024.Dapat kami informasikan untuk kantor wilayah Jakarta pada tanggal 1 Juni 2024 bertepatan dengan hari kesaktian pancasila  tidak beroperasi. dan akan beroperasi kembali pada hari Senin 3 Juni 2024.Budi-Call")
+predictor = PredictorTextClassification("Mohon bantuannya rekan untuk pengecekan pada MicroSIP karena call banyak yang terputus (10.1.1.167:9999 local) dan (sip1.onx.co.id:9999). inet disini terpantau aman")
 hasil_prediksi = predictor()
 print(hasil_prediksi)

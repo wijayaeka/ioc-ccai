@@ -6,73 +6,9 @@ import os
 import openai
 import json
 import re
+from model_service import classifier  # Import service model
 
 app = Flask(__name__)
-
-
-# Konfigurasi Azure OpenAI
-# Konfigurasi Azure OpenAI Client
-openai_client = openai.AzureOpenAI(
-    api_key="b98cbbc0f92946588a1f164c728a4e14",
-    azure_endpoint="https://openai-ai-gpt.openai.azure.com/",
-    api_version="2024-08-01-preview"
-)
-
-# AZURE_OPENAI_ENDPOINT = "https://openai-ai-gpt.openai.azure.com/"
-# AZURE_OPENAI_API_KEY = "b98cbbc0f92946588a1f164c728a4e14"
-# AZURE_OPENAI_API_DEPLOYMENT_NAME = "gpt-4o"
-# AZURE_OPENAI_API_VERSION = "2024-08-01-preview"
-#
-# openai.api_type = "azure"
-# openai.api_base = AZURE_OPENAI_ENDPOINT
-# openai.api_key = AZURE_OPENAI_API_KEY
-# openai.api_version = AZURE_OPENAI_API_VERSION
-
-
-class PredictorTextClassification:
-    def __init__(self, model_dir="results/model1/hasilmodel"):
-        self.path = self.get_latest_checkpoint(model_dir)  # Ambil checkpoint terbaru
-        self.mapping_class = json.loads(Path("results/model1/mapping.json").read_text())
-
-        # Load model & tokenizer sekali saja saat startup
-        self.model = AutoModelForSequenceClassification.from_pretrained(self.path, ignore_mismatched_sizes=True)
-        self.tokenizer = AutoTokenizer.from_pretrained(self.path)
-        self.pipe = TextClassificationPipeline(model=self.model, tokenizer=self.tokenizer, top_k=1)
-
-    def get_latest_checkpoint(self, model_dir: str) -> str:
-        """Mencari checkpoint terbaru berdasarkan angka terbesar."""
-        model_path = Path(model_dir)
-        checkpoints = sorted(
-            [p for p in model_path.iterdir() if p.is_dir() and "checkpoint-" in p.name],
-            key=lambda x: int(x.name.split("-")[-1]),
-            reverse=True
-        )
-        return str(checkpoints[0]) if checkpoints else model_dir  # Jika tidak ada checkpoint, gunakan direktori utama
-
-    def predict(self, text: str):
-        print(text)
-        res = self.pipe(text)[0][0]
-        result = self.mapping_class[str(res['label'])]
-        result['confidence'] = res['score']
-
-        detail = result["label_description"].split(" | ")
-        if len(detail) == 5:
-            result = {
-                "category_id": result['label_value'],
-                "mainCategory": detail[0],
-                "category": detail[1],
-                "subCategory": detail[2],
-                "detailSubCategory": detail[3],
-                "detailSubCategory2": detail[4],
-                "confidence": res['score']
-            }
-        print(result);
-        return result
-
-
-# Load model saat startup
-predictor = PredictorTextClassification()
-
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -82,11 +18,12 @@ def predict():
         if not text:
             return jsonify({"error": "Text is required"}), 400
 
-        result = predictor.predict(text)
+        result = classifier.predict(text)
         return jsonify(result)
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 @app.route("/email-checker", methods=["POST"])
 def email_checker():

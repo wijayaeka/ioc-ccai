@@ -101,8 +101,19 @@ class ProcessData():
             for item in df['label'].unique():
                 file.write(str(item) + "\n")
         
-        # split data into train and test
+        # split data into train and tes
         df = df[['text', 'label']]
+        # Cek distribusi label sebelum split
+        print("Distribusi label sebelum split:")
+        print(df['label'].value_counts())
+
+        # Hapus label yang kurang dari 2 sampel
+        df = df[df.groupby('label')['label'].transform('count') > 1]
+
+        # Cek kembali distribusi setelah filter
+        print("Distribusi label setelah filter:")
+        print(df['label'].value_counts())
+
         train_df, test_df = train_test_split(
             df,
             test_size=0.2,
@@ -112,7 +123,7 @@ class ProcessData():
         train_df.to_csv(self.location + '/train.csv', index=False, encoding='utf-8')
         test_df.to_csv(self.location + '/test.csv', index=False, encoding='utf-8')
         print("Preprocessing completed")
-    
+
     def training(self):
         print("Training function started")
         with open(self.location + "/label.txt", "r") as f:
@@ -196,7 +207,7 @@ class ProcessData():
         model.resize_token_embeddings(len(tokenizer))
 
         training_args = TrainingArguments(
-            output_dir=self.location+"/hasilmodel",
+            output_dir=self.location+"/model_ioc",
             overwrite_output_dir=True,
             do_train=True,
             do_eval=True,
@@ -231,14 +242,14 @@ class ProcessData():
         eval_result = trainer.evaluate()
         print(eval_result)
 
-        trainer.save_model(self.location + "/hasilmodel")
+        trainer.save_model(self.location + "/model_ioc")
         print("Training completed")
 
 
-file_url = 'training30072024.xlsx'
+file_url = 'ioc_dataset.xlsx'
 df = pd.read_excel(file_url)
 
-service_credential_id = 1
+service_credential_id = 2
 
 processData = ProcessData(service_credential_id, df)
 processData()
