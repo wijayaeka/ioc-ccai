@@ -1,16 +1,25 @@
 import json
+import os
 from pathlib import Path
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
 import torch
 
 class TextClassifier:
-    def __init__(self, model_name="captainrobotfly/ccai_coi", mapping_file="label_mapping.json"):
+    def __init__(self, model_name="captainrobotfly/ccai_coi", mapping_file="label_mapping.json", hf_api_key="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"):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"Device set to use {self.device}")
 
-        # Load model & tokenizer
-        self.model = AutoModelForSequenceClassification.from_pretrained(model_name).to(self.device)
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        # Gunakan API key dari parameter atau environment variable
+        self.hf_api_key = hf_api_key or os.getenv("HF_API_KEY")
+
+        # Load model & tokenizer dengan API Key
+        self.model = AutoModelForSequenceClassification.from_pretrained(
+            model_name, token=self.hf_api_key
+        ).to(self.device)
+
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            model_name, token=self.hf_api_key
+        )
 
         # Load label mapping
         self.mapping = self.load_mapping(mapping_file)
@@ -58,5 +67,5 @@ class TextClassifier:
             "confidence": confidence
         }
 
-# Inisialisasi sekali saat server Flask dimulai
+# Contoh penggunaan dengan API Key
 classifier = TextClassifier()
