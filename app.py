@@ -107,4 +107,4 @@ def email_checker():
 
 if __name__ == '__main__':
     # Gantilah `0.0.0.0` dengan `127.0.0.1` untuk menghindari masalah akses di Windows
-    app.run(host='127.0.0.1', port=2000, debug=True)
+    app.run(host='0.0.0.0', port=2000, debug=True)
