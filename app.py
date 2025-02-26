@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.INFO)
 
 # Konfigurasi OpenAI Client
 openai_client = openai.AzureOpenAI(
-    api_key="b98cbbc0f92946588a1f164c728a4e14",
+    api_key="xxxx",
     azure_endpoint="https://openai-ai-gpt.openai.azure.com/",
     api_version="2024-08-01-preview"
 )
@@ -84,7 +84,7 @@ def email_checker():
                 {"role": "user", "content": prompt}
             ],
             temperature=0,
-            timeout=60  # Tambahkan timeout 10 detik
+            timeout=10  # Tambahkan timeout 10 detik
         )
 
         raw_response = response.choices[0].message.content.strip()

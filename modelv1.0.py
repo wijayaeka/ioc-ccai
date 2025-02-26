@@ -138,7 +138,7 @@ class ProcessData():
 
         dataset = load_dataset("csv", data_files=data_file, features=feat)
 
-        pretrained = "cahya/bert-base-indonesian-1.5G"
+        pretrained = r"C:\Users\MSI SHOP ID\.cache\huggingface\hub\models--cahya--bert-base-indonesian-1.5G\snapshots\a4400ab68607dea3f7f1522f9fed74909980bd77"
 
         tokenizer = AutoTokenizer.from_pretrained(pretrained)
 
@@ -207,7 +207,7 @@ class ProcessData():
         model.resize_token_embeddings(len(tokenizer))
 
         training_args = TrainingArguments(
-            output_dir=self.location+"/model_ioc",
+            output_dir=self.location+"/model_new",
             overwrite_output_dir=True,
             do_train=True,
             do_eval=True,
@@ -242,14 +242,14 @@ class ProcessData():
         eval_result = trainer.evaluate()
         print(eval_result)
 
-        trainer.save_model(self.location + "/model_ioc")
+        trainer.save_model(self.location + "/model_new")
         print("Training completed")
 
 
-file_url = 'ioc_dataset.xlsx'
+file_url = 'data_baru_ioc.xlsx'
 df = pd.read_excel(file_url)
 
-service_credential_id = 2
+service_credential_id = 3
 
 processData = ProcessData(service_credential_id, df)
 processData()
