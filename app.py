@@ -1,9 +1,14 @@
 from flask import Flask, request, jsonify
+from PIL import Image, ExifTags
 import openai
 import json
 import re
 import logging
 from model_service import classifier  # Import service model
+import cv2
+import math
+import numpy as np
+import io
 
 app = Flask(__name__)
 
@@ -104,7 +109,124 @@ def email_checker():
         logging.error(f"Error in /email-checker: {e}")
         return jsonify({"error": str(e)}), 500
 
+@app.route("/metaimage", methods=["POST"])
+def metaimage():
+    try:
+        file = request.files['image']
+        site_coordinate_location = request.form['site_coordinate_location']
+    except KeyError as e:
+        return jsonify({'error': f'Missing parameter: {str(e)}'}), 400
 
+    img = get_metadata(file)
+    blur_percentage = calculate_blur(file)
+    quality = 'Good' if blur_percentage >= 100 else 'Blurred'
+    gps_location = ''
+    distance2 = 'null'
+    distance = 'null'
+
+    img_date = img.get('DateTime', None)
+    gps_info = img.get('GPSInfo', {})
+
+    if gps_info:
+        try:
+            latitude_dms = gps_info.get(2, [float('nan'), float('nan'), float('nan')])
+            latitude_hemisphere = gps_info.get(1, ' ')
+            longitude_dms = gps_info.get(4, [float('nan'), float('nan'), float('nan')])
+            longitude_hemisphere = gps_info.get(3, ' ')
+
+            if is_valid_dms(latitude_dms) and is_valid_hemisphere(latitude_hemisphere):
+                latitude = dms_to_decimal(*latitude_dms)
+                if latitude_hemisphere == 'S':
+                    latitude = -latitude
+            else:
+                raise ValueError("Invalid latitude DMS or hemisphere")
+
+            if is_valid_dms(longitude_dms) and is_valid_hemisphere(longitude_hemisphere):
+                longitude = dms_to_decimal(*longitude_dms)
+                if longitude_hemisphere == 'W':
+                    longitude = -longitude
+            else:
+                raise ValueError("Invalid longitude DMS or hemisphere")
+
+            lat_str, lon_str = site_coordinate_location.split()
+            site_lat = float(lat_str)
+            site_long = float(lon_str)
+            distance = haversine(site_lat, site_long, latitude, longitude)
+            distance2 = round(distance, 1)
+            gps_location = f"{latitude} {longitude}"
+        except (ValueError, KeyError) as e:
+            print(f"Error processing GPSInfo for image: {e}")
+            gps_location = "Invalid GPS data"
+            distance2 = 'null'
+
+    image_data = [{
+        'distance': distance2,
+        'gps_location': gps_location,
+        'blur_percentage': blur_percentage,
+        'quality': quality,
+        'img_date': img_date
+    }]
+
+    response_data = {'status': 'success', 'message': 'Image processing initiated!', 'image_data': image_data}
+    return jsonify(response_data), 201
+
+def get_metadata(file):
+    def convert_value(value):
+        if isinstance(value, bytes):
+            try:
+                value = value.decode('utf-8', 'ignore')
+            except UnicodeDecodeError:
+                value = value.hex()
+        elif isinstance(value, (int, float, str)):
+            pass
+        elif isinstance(value, (tuple, list)):
+            value = [convert_value(v) for v in value]
+        elif hasattr(value, 'numerator') and hasattr(value, 'denominator') and value.denominator != 0:
+            value = float(value.numerator) / float(value.denominator)
+        elif isinstance(value, dict):
+            value = {convert_value(k): convert_value(v) for k, v in value.items()}
+        else:
+            value = str(value)
+        return value
+
+    image = Image.open(io.BytesIO(file.read()))
+    info = image._getexif()
+    file.seek(0)
+    if info:
+        metadata = {ExifTags.TAGS.get(tag, tag): convert_value(value) for tag, value in info.items() if ExifTags.TAGS.get(tag, tag) != 'MakerNote'}
+        return metadata
+    return {}
+
+def calculate_blur(file, roi=None):
+    file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
+    file.seek(0)
+    image = cv2.imdecode(file_bytes, cv2.IMREAD_GRAYSCALE)
+    if image is None:
+        raise ValueError("Image could not be loaded. Check the file path.")
+
+    h, w = image.shape
+    roi = roi or (w // 4, h // 4, w // 2, h // 2)
+    x, y, w, h = roi
+    image_roi = image[y:y + h, x:x + w]
+    laplacian = cv2.Laplacian(image_roi, cv2.CV_64F)
+    return round(laplacian.var()) if laplacian.var() > 0 else 0
+
+def is_valid_dms(dms):
+    return len(dms) == 3 and all(isinstance(x, (int, float)) and not math.isnan(x) for x in dms)
+
+def is_valid_hemisphere(hemisphere):
+    return hemisphere in ['N', 'S', 'E', 'W']
+
+def dms_to_decimal(degrees, minutes, seconds):
+    return degrees + (minutes / 60) + (seconds / 3600)
+
+def haversine(lat1, lon1, lat2, lon2):
+    R = 6371.0
+    lat1_rad, lon1_rad = map(math.radians, [lat1, lon1])
+    lat2_rad, lon2_rad = map(math.radians, [lat2, lon2])
+    dlat, dlon = lat2_rad - lat1_rad, lon2_rad - lon1_rad
+    a = math.sin(dlat / 2) ** 2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2) ** 2
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 if __name__ == '__main__':
     # Gantilah `0.0.0.0` dengan `127.0.0.1` untuk menghindari masalah akses di Windows
-    app.run(host='0.0.0.0', port=2000, debug=True)
+    app.run(host='0.0.0.0', port=6400, debug=True)

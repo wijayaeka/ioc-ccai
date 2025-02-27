@@ -27,10 +27,10 @@ DEPLOYMENT_NAME = "gpt-4"
 from groq import Groq
 
 client = Groq(
-    api_key="xxx",
+    api_key="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",
 )
 class TextClassifier:
-    def __init__(self, model_name="captainrobotfly/ioc_v2", mapping_file="results/model3/model_new/mapping.json", hf_api_key="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"):
+    def __init__(self, model_name="captainrobotfly/ioc_v2", mapping_file="mapping.json", hf_api_key="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"):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"Device set to use {self.device}")
 
