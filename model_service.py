@@ -13,7 +13,7 @@ import os
 # Konfigurasi Azure OpenAI
 client_openai = openai.AzureOpenAI(
     azure_endpoint="https://your-azure-openai-instance.openai.azure.com/",  # Ganti dengan endpoint Azure kamu
-    api_key="xxx",  # Ganti dengan API Key kamu
+    api_key="b98cbbc0f92946588a1f164c728a4e14",  # Ganti dengan API Key kamu
     api_version="2023-12-01-preview"  # Sesuaikan dengan versi API yang digunakan
 )
 DEPLOYMENT_NAME = "gpt-4"
@@ -27,7 +27,7 @@ DEPLOYMENT_NAME = "gpt-4"
 from groq import Groq
 
 client = Groq(
-    api_key="xxx",
+    api_key="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",
 )
 class TextClassifier:
     def __init__(self, model_name="captainrobotfly/ioc_v2", mapping_file="results/model3/model_new/mapping.json", hf_api_key="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"):
@@ -152,7 +152,7 @@ class TextClassifier:
         """Mengubah string label_description menjadi dictionary berdasarkan urutan elemen."""
         parts = description.split("|")
 
-        # Definisikan struktur data sesuai urutan elemen dalam string
+        # Definisikan struktur data sesuai urutan elemen dalam stringlabel_
         keys = [
             "Category", "Layanan", "SubCategory", "TypeIncident", "Scope",
             "Priority", "CategoryId", "", "SubCategory", "GroupLevel", "Dampak",
