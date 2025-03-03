@@ -6,14 +6,19 @@ import torch
 import openai
 import time
 import os
+from dotenv import load_dotenv
+load_dotenv()
 
 
+
+AI_KEY = os.getenv("AI_KEY")
+GROQ_KEY = os.getenv("GROQ_KEY")
 
 
 # Konfigurasi Azure OpenAI
 client_openai = openai.AzureOpenAI(
     azure_endpoint="https://your-azure-openai-instance.openai.azure.com/",  # Ganti dengan endpoint Azure kamu
-    api_key="xxx",  # Ganti dengan API Key kamu
+    api_key=f"{AI_KEY}",  # Ganti dengan API Key kamu
     api_version="2023-12-01-preview"  # Sesuaikan dengan versi API yang digunakan
 )
 DEPLOYMENT_NAME = "gpt-4"
@@ -27,7 +32,7 @@ DEPLOYMENT_NAME = "gpt-4"
 from groq import Groq
 
 client = Groq(
-    api_key="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",
+    api_key=f"{GROQ_KEY}",
 )
 class TextClassifier:
     def __init__(self, model_name="captainrobotfly/ioc_v2", mapping_file="mapping.json", hf_api_key="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"):

@@ -3,7 +3,7 @@
 
 # Mengabaikan file temporary
 *.tmp
-
+.env
 # Mengabaikan file dan folder yang digunakan oleh IDE
 .vscode/
 .idea/
