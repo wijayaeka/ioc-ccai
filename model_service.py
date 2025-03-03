@@ -216,9 +216,10 @@ class TextClassifier:
             "GroupLevel": TextClassifier.safe_get(values, 12),
         }
         return {
-            "category_id": label_info["label_value"],
-            "label_description": label_info2,  # Sekarang objek
-            "confidence": confidence
+            "data" : label_info2
+            # "category_id": label_info["label_value"],
+            # "label_description": label_info2,  # Sekarang objek
+            # "confidence": confidence
         }
 
 
