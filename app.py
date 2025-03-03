@@ -10,6 +10,14 @@ import math
 import numpy as np
 import io
 
+from dotenv import load_dotenv
+load_dotenv()
+
+
+
+AI_KEY = os.getenv("AI_KEY")
+GROQ_KEY = os.getenv("GROQ_KEY")
+
 app = Flask(__name__)
 
 # Konfigurasi Logging
@@ -17,7 +25,7 @@ logging.basicConfig(level=logging.INFO)
 
 # Konfigurasi OpenAI Client
 openai_client = openai.AzureOpenAI(
-    api_key="xxxx",
+    api_key=f"{AI_KEY}",
     azure_endpoint="https://openai-ai-gpt.openai.azure.com/",
     api_version="2024-08-01-preview"
 )
