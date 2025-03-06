@@ -64,27 +64,27 @@ def email_checker():
         Periksa apakah email memiliki semua informasi wajib berikut:
         1. Jenis Laporan (Permintaan/Gangguan/Informasi)
         2. Nama Layanan Request
-        3. Lokasi Layanan Request
-        4. Nama Manager Layanan yang Request
-        5. Nama 
-        6. Email 
-        7. Nomor Telepon
-        8. Deskripsi Request
+        3. No.telp. Layanan ( Untuk Koordinasi )
+        4. Lokasi Layanan Request
+        5. Nama Manager Layanan yang Request
+        6. Nama Nama Pelapor 
+        7. Email Pelapor
+        8. Nomor Telepon
+        9. Deskripsi Request
 
         Jika ada data yang hilang, berikan daftar field yang tidak ditemukan.
         Jika semua data lengkap, kembalikan JSON berikut:
         {{
           "status": "Lengkap",
           "missing_fields": [],
-          "completed_fields": {{"6. Nama": "Dodo"}}
+          "completed_fields": {{"6. Nama Pelapor": "Dodo"}}
         }}
         Jika ada data yang tidak ditemukan, kembalikan dalam format JSON seperti ini:
         {{
           "status": "Tidak Lengkap",
           "missing_fields": ["1", "2"],
-          "completed_fields": {{"5. Nama": "Dodo"}}
+          "completed_fields": {{"6. Nama Pelapor": "Dodo"}}
         }}
-
         Jangan berikan kata-kata lain, cukup hanya JSON-nya saja.
         """
 
