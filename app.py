@@ -13,6 +13,7 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 from wand.image import Image as WandImage
+import pillow_heif
 
 
 
@@ -26,8 +27,16 @@ app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB
 logging.basicConfig(level=logging.INFO)
 
 
-
 def convert_heic_to_jpg(heic_file):
+    heif_image = pillow_heif.open_heif(heic_file)
+    image = Image.frombytes(heif_image.mode, heif_image.size, heif_image.data)
+
+    jpg_bytes = io.BytesIO()
+    image.save(jpg_bytes, format="JPEG")
+    jpg_bytes.seek(0)
+    return jpg_bytes
+
+def convert_heic_to_jpg2(heic_file):
     with WandImage(file=io.BytesIO(heic_file.read())) as img:
         img.format = 'jpg'
         jpg_bytes = io.BytesIO()
@@ -76,25 +85,26 @@ def email_checker():
         Periksa apakah email memiliki semua informasi wajib berikut:
         1. Jenis Laporan (Permintaan/Gangguan/Informasi)
         2. Nama Layanan Request
-        3. Lokasi Layanan Request
-        4. Nama Manager Layanan yang Request
-        5. Nama 
-        6. Email 
-        7. Nomor Telepon
-        8. Deskripsi Request
+        3. No.telp. Layanan ( Untuk Koordinasi )
+        4. Lokasi Layanan Request
+        5. Nama Manager Layanan yang Request
+        6. Nama Nama Pelapor 
+        7. Email Pelapor
+        8. Nomor Telepon
+        9. Deskripsi Request
 
         Jika ada data yang hilang, berikan daftar field yang tidak ditemukan.
         Jika semua data lengkap, kembalikan JSON berikut:
         {{
           "status": "Lengkap",
           "missing_fields": [],
-          "completed_fields": {{"6. Nama": "Dodo"}}
+          "completed_fields": {{"6. Nama Pelapor": "Dodo"}}
         }}
         Jika ada data yang tidak ditemukan, kembalikan dalam format JSON seperti ini:
         {{
           "status": "Tidak Lengkap",
           "missing_fields": ["1", "2"],
-          "completed_fields": {{"5. Nama": "Dodo"}}
+          "completed_fields": {{"6. Nama Pelapor": "Dodo"}}
         }}
 
         Jangan berikan kata-kata lain, cukup hanya JSON-nya saja.
@@ -139,7 +149,7 @@ def metaimage():
         return jsonify({'error': f'Missing parameter: {str(e)}'}), 400
 
     if file.filename.lower().endswith(".heic"):
-        file = convert_heic_to_jpg(file)
+        file = convert_heic_to_jpg2(file)
 
     img = get_metadata(file)
     blur_percentage = calculate_blur(file)
