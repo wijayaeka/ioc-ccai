@@ -26,7 +26,7 @@ client = Groq(api_key=f"{GROQ_KEY}")
 
 
 class TextClassifier:
-    def __init__(self, model_name="captainrobotfly/ioc_v2", mapping_file="results/model4/mapping.json",
+    def __init__(self, model_name="captainrobotfly/ioc_v2", mapping_file="mapping.json",
                  hf_api_key="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"):
         self.device = "cpu"
         print(f"Device set to use {self.device}")
