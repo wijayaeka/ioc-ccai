@@ -20,6 +20,7 @@ AI_KEY = os.getenv("AI_KEY")
 GROQ_KEY = os.getenv("GROQ_KEY")
 
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB
 
 # Konfigurasi Logging
 logging.basicConfig(level=logging.INFO)
