@@ -12,8 +12,6 @@ import io
 import os
 from dotenv import load_dotenv
 load_dotenv()
-from wand.image import Image as WandImage
-import pillow_heif
 
 
 
@@ -21,28 +19,9 @@ AI_KEY = os.getenv("AI_KEY")
 GROQ_KEY = os.getenv("GROQ_KEY")
 
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB
 
 # Konfigurasi Logging
 logging.basicConfig(level=logging.INFO)
-
-
-def convert_heic_to_jpg(heic_file):
-    heif_image = pillow_heif.open_heif(heic_file)
-    image = Image.frombytes(heif_image.mode, heif_image.size, heif_image.data)
-
-    jpg_bytes = io.BytesIO()
-    image.save(jpg_bytes, format="JPEG")
-    jpg_bytes.seek(0)
-    return jpg_bytes
-
-def convert_heic_to_jpg2(heic_file):
-    with WandImage(file=io.BytesIO(heic_file.read())) as img:
-        img.format = 'jpg'
-        jpg_bytes = io.BytesIO()
-        img.save(file=jpg_bytes)
-        jpg_bytes.seek(0)
-        return jpg_bytes
 
 # Konfigurasi OpenAI Client
 openai_client = openai.AzureOpenAI(
@@ -85,26 +64,25 @@ def email_checker():
         Periksa apakah email memiliki semua informasi wajib berikut:
         1. Jenis Laporan (Permintaan/Gangguan/Informasi)
         2. Nama Layanan Request
-        3. No.telp. Layanan ( Untuk Koordinasi )
-        4. Lokasi Layanan Request
-        5. Nama Manager Layanan yang Request
-        6. Nama Nama Pelapor 
-        7. Email Pelapor
-        8. Nomor Telepon
-        9. Deskripsi Request
+        3. Lokasi Layanan Request
+        4. Nama Manager Layanan yang Request
+        5. Nama 
+        6. Email 
+        7. Nomor Telepon
+        8. Deskripsi Request
 
         Jika ada data yang hilang, berikan daftar field yang tidak ditemukan.
         Jika semua data lengkap, kembalikan JSON berikut:
         {{
           "status": "Lengkap",
           "missing_fields": [],
-          "completed_fields": {{"6. Nama Pelapor": "Dodo"}}
+          "completed_fields": {{"6. Nama": "Dodo"}}
         }}
         Jika ada data yang tidak ditemukan, kembalikan dalam format JSON seperti ini:
         {{
           "status": "Tidak Lengkap",
           "missing_fields": ["1", "2"],
-          "completed_fields": {{"6. Nama Pelapor": "Dodo"}}
+          "completed_fields": {{"5. Nama": "Dodo"}}
         }}
 
         Jangan berikan kata-kata lain, cukup hanya JSON-nya saja.
@@ -121,7 +99,7 @@ def email_checker():
             temperature=0,
             timeout=10  # Tambahkan timeout 10 detik
         )
-        print(response)
+
         raw_response = response.choices[0].message.content.strip()
 
         # Bersihkan output JSON
@@ -139,7 +117,6 @@ def email_checker():
         logging.error(f"Error in /email-checker: {e}")
         return jsonify({"error": str(e)}), 500
 
-
 @app.route("/metaimage", methods=["POST"])
 def metaimage():
     try:
@@ -148,14 +125,12 @@ def metaimage():
     except KeyError as e:
         return jsonify({'error': f'Missing parameter: {str(e)}'}), 400
 
-    if file.filename.lower().endswith(".heic"):
-        file = convert_heic_to_jpg2(file)
-
     img = get_metadata(file)
     blur_percentage = calculate_blur(file)
     quality = 'Good' if blur_percentage >= 100 else 'Blurred'
     gps_location = ''
     distance2 = 'null'
+    distance = 'null'
 
     img_date = img.get('DateTime', None)
     gps_info = img.get('GPSInfo', {})
@@ -202,6 +177,7 @@ def metaimage():
 
     response_data = {'status': 'success', 'message': 'Image processing initiated!', 'image_data': image_data}
     return jsonify(response_data), 201
+
 def get_metadata(file):
     def convert_value(value):
         if isinstance(value, bytes):
@@ -259,8 +235,6 @@ def haversine(lat1, lon1, lat2, lon2):
     dlat, dlon = lat2_rad - lat1_rad, lon2_rad - lon1_rad
     a = math.sin(dlat / 2) ** 2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2) ** 2
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-
-
 if __name__ == '__main__':
     # Gantilah `0.0.0.0` dengan `127.0.0.1` untuk menghindari masalah akses di Windows
     app.run(host='0.0.0.0', port=6400, debug=True)
