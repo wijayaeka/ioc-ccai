@@ -2,7 +2,6 @@ import json
 import os
 from pathlib import Path
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
-# import torch
 import openai
 import time
 from dotenv import load_dotenv
