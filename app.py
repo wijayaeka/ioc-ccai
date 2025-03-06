@@ -61,16 +61,16 @@ def email_checker():
         Ekstrak informasi berikut dari konten email berikut:
         \"\"\"{sanitized_content}\"\"\".
 
-        Periksa apakah email memiliki semua informasi wajib berikut:
+        Periksa apakah email memiliki semua informasi yang berhubungan seperti berikut:
         1. Jenis Laporan (Permintaan/Gangguan/Informasi)
-        2. Nama Layanan Request
+        2. Layanan
         3. No.telp. Layanan ( Untuk Koordinasi )
-        4. Lokasi Layanan Request
+        4. Lokasi
         5. Nama Manager Layanan yang Request
         6. Nama Nama Pelapor 
         7. Email Pelapor
         8. Nomor Telepon
-        9. Deskripsi Request
+        9. Deskripsi 
 
         Jika ada data yang hilang, berikan daftar field yang tidak ditemukan.
         Jika semua data lengkap, kembalikan JSON berikut:
