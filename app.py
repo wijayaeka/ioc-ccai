@@ -59,21 +59,24 @@ def email_checker():
 
         prompt = f"""
         Ekstrak informasi berikut dari konten email berikut:
+        
         \"\"\"{sanitized_content}\"\"\".
+        Periksa apakah konten tersebut memiliki semua informasi yang sesuai dengan daftar berikut:
 
-        Periksa apakah email memiliki semua informasi yang berhubungan seperti berikut:
-        1. Jenis Laporan (Permintaan/Gangguan/Informasi)
-        2. Layanan
-        3. No.telp. Layanan ( Untuk Koordinasi )
-        4. Lokasi
-        5. Nama Manager Layanan yang Request
-        6. Nama Nama Pelapor 
-        7. Email Pelapor
-        8. Nomor Telepon
-        9. Deskripsi 
+1. **Jenis Laporan** (Permintaan/Gangguan/Informasi)  
+2. **Layanan** (Nama layanan yang disebutkan dalam email)  
+3. **No. Telp Layanan** (Nomor telepon untuk koordinasi layanan)  
+4. **Lokasi** (Lokasi layanan yang disebutkan)  
+5. **Nama Manager Layanan yang Request** (Nama manager yang terkait dalam layanan)  
+6. **Nama Pelapor** (Nama orang yang melaporkan permintaan)  
+7. **Email Pelapor** (Email pelapor, jika tidak ada, anggap tidak ditemukan)  
+8. **Nomor Telepon** (Nomor telepon pelapor)  
+9. **Deskripsi** (Isi permintaan atau masalah yang disebutkan dalam email)  
 
-        Jika ada data yang hilang, berikan daftar field yang tidak ditemukan.
-        Jika semua data lengkap, kembalikan JSON berikut:
+Gunakan pendekatan **similarity matching** untuk mencocokkan informasi dari email dengan daftar di atas.  
+Jika ada informasi yang tidak ditemukan atau kosong, catat sebagai **missing_fields**.  
+
+### **Format Jawaban**  
         {{
           "status": "Lengkap",
           "missing_fields": [],
@@ -87,7 +90,7 @@ def email_checker():
         }}
         Jangan berikan kata-kata lain, cukup hanya JSON-nya saja.
         """
-
+        #print(prompt)
         # Panggil OpenAI API dengan timeout
         response = openai_client.chat.completions.create(
             model="gpt-4o",
