@@ -14,12 +14,14 @@ from dotenv import load_dotenv
 load_dotenv()
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+import pymysql
 
 
 
 
 AI_KEY = os.getenv("AI_KEY")
 GROQ_KEY = os.getenv("GROQ_KEY")
+pymysql.install_as_MySQLdb()
 
 app = Flask(__name__)
 
