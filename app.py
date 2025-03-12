@@ -12,6 +12,9 @@ import io
 import os
 from dotenv import load_dotenv
 load_dotenv()
+from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime
+
 
 
 
@@ -19,6 +22,12 @@ AI_KEY = os.getenv("AI_KEY")
 GROQ_KEY = os.getenv("GROQ_KEY")
 
 app = Flask(__name__)
+
+
+# Konfigurasi database MySQL
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("SQLALCHEMY_DATABASE_URI")
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
 
 # Konfigurasi Logging
 logging.basicConfig(level=logging.INFO)
@@ -30,6 +39,44 @@ openai_client = openai.AzureOpenAI(
     api_version="2024-08-01-preview"
 )
 
+class OpenAIResponse(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    prompt = db.Column(db.Text, nullable=False)
+    created = db.Column(db.BigInteger, nullable=False)
+    model = db.Column(db.String(255), nullable=False)
+    object_type = db.Column(db.String(255), nullable=False)
+    system_fingerprint = db.Column(db.String(255), nullable=True)
+    usage = db.Column(db.Text, nullable=False)  # Pastikan bisa menyimpan JSON
+    prompt_tokens = db.Column(db.Integer, nullable=False)
+    total_tokens = db.Column(db.Integer, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)  # Tambahkan waktu saat insert
+
+    def __repr__(self):
+        return f'<OpenAIResponse {self.model} - {self.created}>'
+
+# Buat tabel di database
+with app.app_context():
+    db.create_all()
+
+def save_openai_response(response_data):
+    with app.app_context():
+        for data in response_data:
+            # Konversi objek `CompletionUsage` ke dictionary
+            usage_dict = data["usage"].__dict__ if hasattr(data["usage"], "__dict__") else data["usage"]
+
+            openai_response = OpenAIResponse(
+                prompt=data["prompt"],
+                created=data["created"],
+                model=data["model"],
+                object_type=data["object"],
+                system_fingerprint=data.get("system_fingerprint"),
+                usage=json.dumps(usage_dict),  # Simpan dalam bentuk JSON
+                prompt_tokens=data["prompt_tokens"],
+                total_tokens=data["total_tokens"],
+                timestamp=datetime.utcnow()
+            )
+            db.session.add(openai_response)
+        db.session.commit()
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -104,10 +151,24 @@ Jika ada informasi yang tidak ditemukan atau kosong, catat sebagai **missing_fie
         )
 
         raw_response = response.choices[0].message.content.strip()
-
+        # print(response)
         # Bersihkan output JSON
         clean_json_str = re.sub(r"```json|```", "", raw_response).strip()
 
+        response_data = [{
+            "prompt": prompt,
+            "created": response.created,
+            "model": response.model,
+            "object": response.object,
+            "system_fingerprint": response.system_fingerprint,
+            "usage": response.usage.model_dump(),  # Konversi `response.usage` menjadi dictionary
+            "prompt_tokens": response.usage.prompt_tokens,
+            "total_tokens": response.usage.total_tokens,
+
+        }]
+
+        # print(response_data)
+        save_openai_response(response_data)
         try:
             ai_response = json.loads(clean_json_str)
         except json.JSONDecodeError as e:
