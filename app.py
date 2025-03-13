@@ -100,6 +100,7 @@ def predict():
 def email_checker():
     try:
         email_content = request.form.get("emailContent") or request.data.decode("utf-8")
+        email_sender = request.form.get("email") or request.data.decode("utf-8")
 
         if not email_content:
             return jsonify({"error": "emailContent is required"}), 400
@@ -108,37 +109,73 @@ def email_checker():
 
         prompt = f"""
         Ekstrak informasi berikut dari konten email berikut:
-        
+
         \"\"\"{sanitized_content}\"\"\".
-        Periksa apakah konten tersebut memiliki semua informasi yang sesuai dengan daftar berikut:
 
-1. **Jenis Laporan** (Permintaan/Gangguan/Informasi)  
-2. **Layanan** (Nama layanan yang disebutkan dalam email)  
-3. **No. Telp Layanan** (Nomor telepon untuk koordinasi layanan)  
-4. **Lokasi** (Lokasi layanan yang disebutkan)  
-5. **Nama Manager Layanan yang Request** (Nama manager yang terkait dalam layanan)  
-6. **Nama Pelapor** (Nama orang yang melaporkan permintaan)  
-7. **Email Pelapor** (Email pelapor, jika tidak ada, anggap tidak ditemukan)  
-8. **Nomor Telepon** (Nomor telepon pelapor)  
-9. **Deskripsi** (Isi permintaan atau masalah yang disebutkan dalam email)  
+        Periksa apakah konten email memiliki semua informasi berikut menggunakan pendekatan **similarity matching**:
 
-Gunakan pendekatan **similarity matching** untuk mencocokkan informasi dari email dengan daftar di atas.  
-Jika ada informasi yang tidak ditemukan atau kosong, catat sebagai **missing_fields**.  
+        1. **Jenis Laporan** (Permintaan/Gangguan/Informasi)  
+        2. **Layanan** (Nama layanan yang disebutkan dalam email)  
+        3. **No. Telp Layanan** (Nomor telepon untuk koordinasi layanan)  
+        4. **Lokasi** (Lokasi layanan yang disebutkan)  
+        5. **Nama Manager Layanan** (Nama manager yang terkait dalam layanan)  
+        6. **Nama Pelapor** (Nama orang yang melaporkan permintaan)  
+        7. **Email Pelapor** (Email pelapor, jika tidak ada, anggap tidak ditemukan)  
+        8. **Nomor Telepon** (Nomor telepon pelapor)  
+        9. **Deskripsi** (Isi permintaan atau masalah yang disebutkan dalam email)  
 
-### **Format Jawaban**  
+        Jika ada informasi yang tidak ditemukan atau kosong, catat dalam daftar **missing_fields**.  
+
+        **Format Jawaban:**  
+        Jika semua data ditemukan:  
+
+        ```json
+        
+        
         {{
+        "sender":{email_sender},
           "status": "Lengkap",
-          "missing_fields": [],
-          "completed_fields": {{"6. Nama Pelapor": "Dodo"}}
+          "completed_fields": [
+            {{
+              "Id": 1,
+              "detail": "Jenis Laporan",
+              "value": "Informasi"
+            }},
+            {{
+              "Id": 2,
+              "detail": "Layanan",
+              "value": "Garuda"
+            }}
+          ]
         }}
-        Jika ada data yang tidak ditemukan, kembalikan dalam format JSON seperti ini:
+        Jika ada data yang tidak ditemukan:
         {{
-          "status": "Tidak Lengkap",
-          "missing_fields": ["1", "2"],
-          "completed_fields": {{"6. Nama Pelapor": "Dodo"}}
-        }}
-        Jangan berikan kata-kata lain, cukup hanya JSON-nya saja.
-        """
+        "sender":{email_sender},
+  "status": "Tidak Lengkap",
+  "missing_fields": [
+    {{
+      "Id": 5,
+      "detail": "Nama Pelapor"
+    }},
+    {{
+      "Id": 6,
+      "detail": "Deskripsi"
+    }}
+  ],
+  "completed_fields": [
+    {{
+      "Id": 1,
+      "detail": "Jenis Laporan",
+      "value": "Informasi"
+    }},
+    {{
+      "Id": 2,
+      "detail": "Layanan",
+      "value": "Garuda"
+    }}
+  ]
+}}
+"""
         #print(prompt)
         # Panggil OpenAI API dengan timeout
         response = openai_client.chat.completions.create(
