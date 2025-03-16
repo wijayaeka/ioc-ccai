@@ -15,6 +15,8 @@ load_dotenv()
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 import pymysql
+from flask_mail import Mail, Message
+
 
 
 
@@ -27,9 +29,19 @@ app = Flask(__name__)
 
 
 # Konfigurasi database MySQL
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("SQLALCHEMY_DATABASE_URI")
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("SQLALCHEMY_DATABASE_URI_DEV")
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
+
+# Konfigurasi SMTP Gmail
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = 'threeatech.development@gmail.com'  # Ganti dengan email Anda
+app.config['MAIL_PASSWORD'] = 'qqkl imgy rxbq cjrk'  # Ganti dengan password atau App Password
+app.config['MAIL_DEFAULT_SENDER'] = 'threeatech.development@gmail.com'
+
+mail = Mail(app)
 
 # Konfigurasi Logging
 logging.basicConfig(level=logging.INFO)
@@ -56,6 +68,35 @@ class OpenAIResponse(db.Model):
     def __repr__(self):
         return f'<OpenAIResponse {self.model} - {self.created}>'
 
+
+# Model Database
+class RequestData(db.Model):
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    auth_id = db.Column(db.String(50), nullable=False)
+    session_id = db.Column(db.String(100), nullable=False)
+    service_credential_id = db.Column(db.String(50), nullable=False)
+    text_classification_id = db.Column(db.Integer, nullable=False)
+    text = db.Column(db.Text, nullable=False)
+
+class ResponseData(db.Model):
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    request_id = db.Column(db.Integer, db.ForeignKey('request_data.id'), nullable=False)
+    category = db.Column(db.String(100))
+    category_id = db.Column(db.String(50))
+    detail_sub_category = db.Column(db.String(255))
+    group_level = db.Column(db.String(50))
+    impact = db.Column(db.String(50))
+    layanan = db.Column(db.String(255))
+    nama_jenis_perangkat = db.Column(db.String(255))
+    priority = db.Column(db.String(50))
+    remark = db.Column(db.Text)
+    scope = db.Column(db.String(100))
+    sentiment = db.Column(db.String(50))
+    sub_category = db.Column(db.String(100))
+    subject = db.Column(db.String(255))
+    symptom = db.Column(db.String(255))
+    type_incident = db.Column(db.String(100))
+    urgency = db.Column(db.String(100))
 # Buat tabel di database
 with app.app_context():
     db.create_all()
@@ -88,8 +129,39 @@ def predict():
         if not text:
             return jsonify({"error": "Text is required"}), 400
 
-        result = classifier.predict(text)
-        return jsonify(result)
+        request_entry = RequestData(
+                auth_id=data["auth_id"],
+                session_id=data["session_id"],
+                service_credential_id=data["service_creadential_id"],
+                text_classification_id=data["text_classification_id"],
+                text=data["text"]
+        )
+        db.session.add(request_entry)
+        db.session.commit()
+
+        label_info2 = classifier.predict(text)
+        response_entry = ResponseData(
+            request_id=request_entry.id,
+            category=label_info2["data"]["Category"],
+            category_id=label_info2["data"]["CategoryID"],
+            detail_sub_category=label_info2["data"]["DetailSubCategory"],
+            group_level=label_info2["data"]["GroupLevel"],
+            impact=label_info2["data"]["Impact"],
+            layanan=label_info2["data"]["Layanan"],
+            nama_jenis_perangkat=label_info2["data"]["NamaJenisPerangkat"],
+            priority=label_info2["data"]["Priority"],
+            remark=label_info2["data"]["Remark"],
+            scope=label_info2["data"]["Scope"],
+            sentiment=label_info2["data"]["Sentiment"],
+            sub_category=label_info2["data"]["SubCategory"],
+            subject=label_info2["data"]["Subject"],
+            symptom=label_info2["data"]["Symptom"],
+            type_incident=label_info2["data"]["TypeIncident"],
+            urgency=label_info2["data"]["Urgency"]
+        )
+        db.session.add(response_entry)
+        db.session.commit()
+        return jsonify(label_info2)
 
     except Exception as e:
         logging.error(f"Error in /predict: {e}")
@@ -338,6 +410,22 @@ def haversine(lat1, lon1, lat2, lon2):
     dlat, dlon = lat2_rad - lat1_rad, lon2_rad - lon1_rad
     a = math.sin(dlat / 2) ** 2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2) ** 2
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+@app.route('/send_email', methods=['GET'])
+def send_email():
+    try:
+        msg = Message(
+            subject="Hello from Flask",
+            sender=app.config['MAIL_DEFAULT_SENDER'],
+            recipients=["wijayaeka2014@gmail.com.com"],  # Ganti dengan email tujuan
+            body="This is a test email sent from a Flask app!"
+        )
+        mail.send(msg)
+        return "Email sent successfully!"
+    except Exception as e:
+        return f"Error sending email: {str(e)}"
+
 if __name__ == '__main__':
     # Gantilah `0.0.0.0` dengan `127.0.0.1` untuk menghindari masalah akses di Windows
     app.run(host='0.0.0.0', port=6400, debug=True)
