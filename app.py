@@ -71,6 +71,7 @@ class OpenAIResponse(db.Model):
 
 # Model Database
 class RequestData(db.Model):
+    __tablename__ = 'request_data'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     auth_id = db.Column(db.String(50), nullable=False)
     session_id = db.Column(db.String(100), nullable=False)
@@ -78,9 +79,16 @@ class RequestData(db.Model):
     text_classification_id = db.Column(db.Integer, nullable=False)
     text = db.Column(db.Text, nullable=False)
 
+    # Relasi ke ResponseData
+    responses = db.relationship('ResponseData', backref='request', cascade="all, delete-orphan")
+
+
 class ResponseData(db.Model):
+    __tablename__ = 'response_data'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    request_id = db.Column(db.Integer, db.ForeignKey('request_data.id'), nullable=False)
+    request_id = db.Column(db.Integer, db.ForeignKey('request_data.id', ondelete="CASCADE"), nullable=False)
+    auth_id = db.Column(db.String(50), nullable=False)  # Relasi ke auth_id dari RequestData
+    session_id = db.Column(db.String(100), nullable=False)  # Relasi ke session_id dari RequestData
     category = db.Column(db.String(100))
     category_id = db.Column(db.String(50))
     detail_sub_category = db.Column(db.String(255))
@@ -97,8 +105,36 @@ class ResponseData(db.Model):
     symptom = db.Column(db.String(255))
     type_incident = db.Column(db.String(100))
     urgency = db.Column(db.String(100))
+
+
+
+# Model untuk menyimpan data yang diterima dari API GET
+class ReceivedData(db.Model):
+    __tablename__ = 'received_data'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    auth_id = db.Column(db.String(50), nullable=False)
+    session_id = db.Column(db.String(100), nullable=False)
+    request_id = db.Column(db.Integer, nullable=False)
+    category = db.Column(db.String(100))
+    category_id = db.Column(db.String(50))
+    detail_sub_category = db.Column(db.String(255))
+    group_level = db.Column(db.String(50))
+    impact = db.Column(db.String(50))
+    layanan = db.Column(db.String(255))
+    nama_jenis_perangkat = db.Column(db.String(255))
+    priority = db.Column(db.String(50))
+    remark = db.Column(db.Text)
+    scope = db.Column(db.String(100))
+    sentiment = db.Column(db.String(50))
+    sub_category = db.Column(db.String(100))
+    subject = db.Column(db.String(255))
+    symptom = db.Column(db.String(255))
+    type_incident = db.Column(db.String(100))
+    urgency = db.Column(db.String(100))
+
 # Buat tabel di database
 with app.app_context():
+    db.drop_all()  # Hapus tabel lama jika perlu
     db.create_all()
 
 def save_openai_response(response_data):
@@ -140,8 +176,14 @@ def predict():
         db.session.commit()
 
         label_info2 = classifier.predict(text)
+        # Tambahkan data baru ke dalam dictionary
+        label_info2["request_id"] = request_entry.id
+        label_info2["auth_id"] = request_entry.auth_id
+        label_info2["session_id"] = request_entry.session_id
         response_entry = ResponseData(
             request_id=request_entry.id,
+            auth_id=request_entry.auth_id,  # Relasi auth_id
+            session_id=request_entry.session_id,  # Relasi session_id
             category=label_info2["data"]["Category"],
             category_id=label_info2["data"]["CategoryID"],
             detail_sub_category=label_info2["data"]["DetailSubCategory"],
@@ -292,125 +334,47 @@ def email_checker():
         logging.error(f"Error in /email-checker: {e}")
         return jsonify({"error": str(e)}), 500
 
-@app.route("/metaimage", methods=["POST"])
-def metaimage():
+
+@app.route('/receive_data', methods=['GET'])
+def receive_data():
     try:
-        file = request.files['image']
-        site_coordinate_location = request.form['site_coordinate_location']
-    except KeyError as e:
-        return jsonify({'error': f'Missing parameter: {str(e)}'}), 400
+        data = request.json  # Ambil data dari body JSON
 
-    img = get_metadata(file)
-    blur_percentage = calculate_blur(file)
-    quality = 'Good' if blur_percentage >= 100 else 'Blurred'
-    gps_location = ''
-    distance2 = 'null'
-    distance = 'null'
+        # Pastikan data memiliki format yang benar
+        if not data or "auth_id" not in data or "data" not in data or "request_id" not in data or "session_id" not in data:
+            return jsonify({"error": "Invalid data format"}), 400
 
-    img_date = img.get('DateTime', None)
-    gps_info = img.get('GPSInfo', {})
+        # Simpan data ke dalam tabel ReceivedData
+        received_entry = ReceivedData(
+            auth_id=data["auth_id"],
+            session_id=data["session_id"],
+            request_id=data["request_id"],
+            category=data["data"]["Category"],
+            category_id=data["data"]["CategoryID"],
+            detail_sub_category=data["data"]["DetailSubCategory"],
+            group_level=data["data"]["GroupLevel"],
+            impact=data["data"]["Impact"],
+            layanan=data["data"]["Layanan"],
+            nama_jenis_perangkat=data["data"]["NamaJenisPerangkat"],
+            priority=data["data"]["Priority"],
+            remark=data["data"]["Remark"],
+            scope=data["data"]["Scope"],
+            sentiment=data["data"]["Sentiment"],
+            sub_category=data["data"]["SubCategory"],
+            subject=data["data"]["Subject"],
+            symptom=data["data"]["Symptom"],
+            type_incident=data["data"]["TypeIncident"],
+            urgency=data["data"]["Urgency"]
+        )
 
-    if gps_info:
-        try:
-            latitude_dms = gps_info.get(2, [float('nan'), float('nan'), float('nan')])
-            latitude_hemisphere = gps_info.get(1, ' ')
-            longitude_dms = gps_info.get(4, [float('nan'), float('nan'), float('nan')])
-            longitude_hemisphere = gps_info.get(3, ' ')
+        db.session.add(received_entry)
+        db.session.commit()
 
-            if is_valid_dms(latitude_dms) and is_valid_hemisphere(latitude_hemisphere):
-                latitude = dms_to_decimal(*latitude_dms)
-                if latitude_hemisphere == 'S':
-                    latitude = -latitude
-            else:
-                raise ValueError("Invalid latitude DMS or hemisphere")
+        return jsonify({"message": "Data received and saved successfully", "received_id": received_entry.id}), 201
 
-            if is_valid_dms(longitude_dms) and is_valid_hemisphere(longitude_hemisphere):
-                longitude = dms_to_decimal(*longitude_dms)
-                if longitude_hemisphere == 'W':
-                    longitude = -longitude
-            else:
-                raise ValueError("Invalid longitude DMS or hemisphere")
-
-            lat_str, lon_str = site_coordinate_location.split()
-            site_lat = float(lat_str)
-            site_long = float(lon_str)
-            distance = haversine(site_lat, site_long, latitude, longitude)
-            distance2 = round(distance, 1)
-            gps_location = f"{latitude} {longitude}"
-        except (ValueError, KeyError) as e:
-            print(f"Error processing GPSInfo for image: {e}")
-            gps_location = "Invalid GPS data"
-            distance2 = 'null'
-
-    image_data = [{
-        'distance': distance2,
-        'gps_location': gps_location,
-        'blur_percentage': blur_percentage,
-        'quality': quality,
-        'img_date': img_date
-    }]
-
-    response_data = {'status': 'success', 'message': 'Image processing initiated!', 'image_data': image_data}
-    return jsonify(response_data), 201
-
-def get_metadata(file):
-    def convert_value(value):
-        if isinstance(value, bytes):
-            try:
-                value = value.decode('utf-8', 'ignore')
-            except UnicodeDecodeError:
-                value = value.hex()
-        elif isinstance(value, (int, float, str)):
-            pass
-        elif isinstance(value, (tuple, list)):
-            value = [convert_value(v) for v in value]
-        elif hasattr(value, 'numerator') and hasattr(value, 'denominator') and value.denominator != 0:
-            value = float(value.numerator) / float(value.denominator)
-        elif isinstance(value, dict):
-            value = {convert_value(k): convert_value(v) for k, v in value.items()}
-        else:
-            value = str(value)
-        return value
-
-    image = Image.open(io.BytesIO(file.read()))
-    info = image._getexif()
-    file.seek(0)
-    if info:
-        metadata = {ExifTags.TAGS.get(tag, tag): convert_value(value) for tag, value in info.items() if ExifTags.TAGS.get(tag, tag) != 'MakerNote'}
-        return metadata
-    return {}
-
-def calculate_blur(file, roi=None):
-    file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
-    file.seek(0)
-    image = cv2.imdecode(file_bytes, cv2.IMREAD_GRAYSCALE)
-    if image is None:
-        raise ValueError("Image could not be loaded. Check the file path.")
-
-    h, w = image.shape
-    roi = roi or (w // 4, h // 4, w // 2, h // 2)
-    x, y, w, h = roi
-    image_roi = image[y:y + h, x:x + w]
-    laplacian = cv2.Laplacian(image_roi, cv2.CV_64F)
-    return round(laplacian.var()) if laplacian.var() > 0 else 0
-
-def is_valid_dms(dms):
-    return len(dms) == 3 and all(isinstance(x, (int, float)) and not math.isnan(x) for x in dms)
-
-def is_valid_hemisphere(hemisphere):
-    return hemisphere in ['N', 'S', 'E', 'W']
-
-def dms_to_decimal(degrees, minutes, seconds):
-    return degrees + (minutes / 60) + (seconds / 3600)
-
-def haversine(lat1, lon1, lat2, lon2):
-    R = 6371.0
-    lat1_rad, lon1_rad = map(math.radians, [lat1, lon1])
-    lat2_rad, lon2_rad = map(math.radians, [lat2, lon2])
-    dlat, dlon = lat2_rad - lat1_rad, lon2_rad - lon1_rad
-    a = math.sin(dlat / 2) ** 2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2) ** 2
-    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/send_email', methods=['GET'])
 def send_email():
