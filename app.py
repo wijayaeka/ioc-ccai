@@ -335,7 +335,7 @@ def email_checker():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/receive_data', methods=['GET'])
+@app.route('/receive_data', methods=['POST'])
 def receive_data():
     try:
         data = request.json  # Ambil data dari body JSON
