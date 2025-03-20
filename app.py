@@ -163,7 +163,7 @@ def predict():
         data = request.get_json()
         text = data.get("message")
         if not text:
-            return jsonify({"error": "Text is required"}), 400
+            return jsonify({"error": "Message is required"}), 400
 
         request_entry = RequestData(
                 auth_id=data["auth_id"],
