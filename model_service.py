@@ -5,6 +5,7 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipe
 import openai
 import time
 from dotenv import load_dotenv
+import re
 
 load_dotenv()
 
@@ -14,9 +15,9 @@ GROQ_KEY = os.getenv("GROQ_KEY")
 
 # Konfigurasi OpenAI Azure
 client_openai = openai.AzureOpenAI(
-    azure_endpoint="https://your-azure-openai-instance.openai.azure.com/",  # Ganti dengan endpoint Azure kamu
+    azure_endpoint="https://openai-ai-gpt.openai.azure.com/",  # Ganti dengan endpoint Azure kamu
     api_key=f"{AI_KEY}",
-    api_version="2023-12-01-preview"
+    api_version="2024-08-01-preview",
 )
 
 # Konfigurasi Groq
@@ -72,8 +73,8 @@ class TextClassifier:
         }}
         """
 
-        response = client.chat.completions.create(
-            model="gpt-4o",
+        response = client_openai.chat.completions.create(
+            model="gpt-4o",  # Pastikan sesuai dengan deployment di Azure
             messages=[
                 {"role": "system", "content": "Anda adalah asisten yang membantu analisis teks."},
                 {"role": "user", "content": prompt}
@@ -81,8 +82,21 @@ class TextClassifier:
             temperature=0.5
         )
 
+        # print(response.choices[0].message.content) # Mengembalikan teks hasil respons
+
+        # result = response.choices[0].message.content.strip()
+        # return json.loads(result)  # Mengubah JSON string ke dictionary
         result = response.choices[0].message.content.strip()
-        return json.loads(result)  # Mengubah JSON string ke dictionary
+        result = re.sub(r"^```json|^```|```$", "", result, flags=re.MULTILINE).strip()
+        # print(result)
+        # Coba parsing JSON
+        try:
+            parsed_result = json.loads(result)  # Mengubah JSON string ke dictionary
+        except json.JSONDecodeError as e:
+            print(f"Error parsing JSON: {e}")
+            parsed_result = {"error": "Response is not a valid JSON", "content": result}
+
+        return parsed_result
 
     @staticmethod
     def analyze_text_groq(text, max_retries=3):
@@ -145,7 +159,7 @@ class TextClassifier:
         res = self.pipeline(text)[0]
         label = res["label"]
         confidence = res["score"]
-
+        # print(confidence)
         # Konversi label "LABEL_X" → "X"
         label_id = label.replace("LABEL_", "")
 
@@ -157,31 +171,48 @@ class TextClassifier:
 
         label_description = label_info["label_description"]
         values = label_description.split('|')
-        print(f"Predicted label: {label}")
-        print(f"Label description: {label_description}")
-        print(f"Extracted values: {values}")
-        print(f"Layanan: {TextClassifier.safe_get(values, 1)}")  # Cek apakah benar mengambil Garuda EC
+        # print(f"Predicted label: {label}")
+        # print(f"Label description: {label_description}")
+        # print(f"Extracted values: {values}")
+        # print(f"Layanan: {TextClassifier.safe_get(values, 1)}")  # Cek apakah benar mengambil Garuda EC
 
         # Dapatkan analisis sentimen
-        ai_resp = self.analyze_text_groq(text)
+        ai_resp = self.analyze_text_azure(text)
+        # print(ai_resp)
 
         label_info2 = {
-            "Layanan": self.safe_get(values, 1),
-            "Subject": self.safe_get(values, 7),
-            "TypeIncident": self.safe_get(values, 2),
-            "CategoryID": self.safe_get(values, 0),
-            "Category": self.safe_get(values, 3),
-            "SubCategory": self.safe_get(values, 4),
+            # "Layanan": self.safe_get(values, 1),
+            # "Subject": self.safe_get(values, 7),
+            # "TypeIncident": self.safe_get(values, 2),
+            # "CategoryID": self.safe_get(values, 0),
+            # "Category": self.safe_get(values, 3),
+            # "SubCategory": self.safe_get(values, 4),
+            # "DetailSubCategory": self.safe_get(values, 5),
+            # "Scope": self.safe_get(values, 6),
+            # "NamaJenisPerangkat": self.safe_get(values, 8),
+            # "Urgency": self.safe_get(values, 11),
+            # "Impact": self.safe_get(values, 9),
+            # "Priority": self.safe_get(values, 10),
+            # "Symptom": self.safe_get(values, 7),
+            # "Sentiment": ai_resp['sentiment'],
+            # "Remark": ai_resp['conclusion'],
+            # "GroupLevel": self.safe_get(values, 12),
+            "Category":  self.safe_get(values, 3),
+            "category_id": self.safe_get(values, 0),
             "DetailSubCategory": self.safe_get(values, 5),
-            "Scope": self.safe_get(values, 6),
-            "NamaJenisPerangkat": self.safe_get(values, 8),
-            "Urgency": self.safe_get(values, 11),
-            "Impact": self.safe_get(values, 9),
-            "Priority": self.safe_get(values, 10),
-            "Symptom": self.safe_get(values, 7),
-            "Sentiment": ai_resp['sentiment'],
-            "Remark": ai_resp['conclusion'],
             "GroupLevel": self.safe_get(values, 12),
+            "Impact": self.safe_get(values, 9),
+            "Layanan": self.safe_get(values, 1),
+            "NamaJenisPerangkat": self.safe_get(values, 8),
+            "Priority": self.safe_get(values, 10),
+            "Remark":  ai_resp['conclusion'],
+            "Scope": self.safe_get(values, 6),
+            "Sentiment": ai_resp['sentiment'],
+            "SubCategory": self.safe_get(values, 4),
+            "Subject": self.safe_get(values, 7),
+            "Symptom": self.safe_get(values, 7),
+            "TypeIncident": self.safe_get(values, 2),
+            "Urgency": self.safe_get(values, 11),
         }
 
         return {"data": label_info2}

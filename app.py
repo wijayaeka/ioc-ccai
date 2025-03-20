@@ -161,7 +161,7 @@ def save_openai_response(response_data):
 def predict():
     try:
         data = request.get_json()
-        text = data.get("text")
+        text = data.get("message")
         if not text:
             return jsonify({"error": "Text is required"}), 400
 
@@ -170,7 +170,7 @@ def predict():
                 session_id=data["session_id"],
                 service_credential_id=data["service_creadential_id"],
                 text_classification_id=data["text_classification_id"],
-                text=data["text"]
+                text=data["message"]
         )
         db.session.add(request_entry)
         db.session.commit()
@@ -185,7 +185,7 @@ def predict():
             auth_id=request_entry.auth_id,  # Relasi auth_id
             session_id=request_entry.session_id,  # Relasi session_id
             category=label_info2["data"]["Category"],
-            category_id=label_info2["data"]["CategoryID"],
+            category_id=label_info2["data"]["category_id"],
             detail_sub_category=label_info2["data"]["DetailSubCategory"],
             group_level=label_info2["data"]["GroupLevel"],
             impact=label_info2["data"]["Impact"],
