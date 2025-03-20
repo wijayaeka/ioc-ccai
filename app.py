@@ -184,22 +184,22 @@ def predict():
             request_id=request_entry.id,
             auth_id=request_entry.auth_id,  # Relasi auth_id
             session_id=request_entry.session_id,  # Relasi session_id
-            category=label_info2["data"]["Category"],
+            category=label_info2["data"]["category"],
             category_id=label_info2["data"]["category_id"],
-            detail_sub_category=label_info2["data"]["DetailSubCategory"],
-            group_level=label_info2["data"]["GroupLevel"],
-            impact=label_info2["data"]["Impact"],
-            layanan=label_info2["data"]["Layanan"],
-            nama_jenis_perangkat=label_info2["data"]["NamaJenisPerangkat"],
-            priority=label_info2["data"]["Priority"],
-            remark=label_info2["data"]["Remark"],
-            scope=label_info2["data"]["Scope"],
-            sentiment=label_info2["data"]["Sentiment"],
-            sub_category=label_info2["data"]["SubCategory"],
-            subject=label_info2["data"]["Subject"],
-            symptom=label_info2["data"]["Symptom"],
-            type_incident=label_info2["data"]["TypeIncident"],
-            urgency=label_info2["data"]["Urgency"]
+            detail_sub_category=label_info2["data"]["detail_sub_category"],
+            group_level=label_info2["data"]["group_level"],
+            impact=label_info2["data"]["impact"],
+            layanan=label_info2["data"]["layanan"],
+            nama_jenis_perangkat=label_info2["data"]["nama_jenis_perangkat"],
+            priority=label_info2["data"]["priority"],
+            remark=label_info2["data"]["remark"],
+            scope=label_info2["data"]["scope"],
+            sentiment=label_info2["data"]["sentiment"],
+            sub_category=label_info2["data"]["sub_category"],
+            subject=label_info2["data"]["subject"],
+            symptom=label_info2["data"]["symptom"],
+            type_incident=label_info2["data"]["type_incident"],
+            urgency=label_info2["data"]["urgency"]
         )
         db.session.add(response_entry)
         db.session.commit()
