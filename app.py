@@ -341,30 +341,30 @@ def receive_data():
         data = request.json  # Ambil data dari body JSON
 
         # Pastikan data memiliki format yang benar
-        if not data or "auth_id" not in data or "data" not in data or "request_id" not in data or "session_id" not in data:
+        if not data or "auth_id" not in data or "data" not in data or "session_id" not in data:
             return jsonify({"error": "Invalid data format"}), 400
 
         # Simpan data ke dalam tabel ReceivedData
         received_entry = ReceivedData(
             auth_id=data["auth_id"],
             session_id=data["session_id"],
-            request_id=data["request_id"],
-            category=data["data"]["Category"],
-            category_id=data["data"]["CategoryID"],
-            detail_sub_category=data["data"]["DetailSubCategory"],
-            group_level=data["data"]["GroupLevel"],
-            impact=data["data"]["Impact"],
-            layanan=data["data"]["Layanan"],
-            nama_jenis_perangkat=data["data"]["NamaJenisPerangkat"],
-            priority=data["data"]["Priority"],
-            remark=data["data"]["Remark"],
-            scope=data["data"]["Scope"],
-            sentiment=data["data"]["Sentiment"],
-            sub_category=data["data"]["SubCategory"],
-            subject=data["data"]["Subject"],
-            symptom=data["data"]["Symptom"],
-            type_incident=data["data"]["TypeIncident"],
-            urgency=data["data"]["Urgency"]
+            request_id=0,
+            category=data["data"]["category"],
+            category_id=data["data"]["category_id"],
+            detail_sub_category=data["data"]["detail_sub_category"],
+            group_level=data["data"]["group_level"],
+            impact=data["data"]["impact"],
+            layanan=data["data"]["layanan"],
+            nama_jenis_perangkat=data["data"]["nama_jenis_perangkat"],
+            priority=data["data"]["priority"],
+            remark=data["data"]["remark"],
+            scope=data["data"]["scope"],
+            sentiment=data["data"]["sentiment"],
+            sub_category=data["data"]["sub_category"],
+            subject=data["data"]["subject"],
+            symptom=data["data"]["symptom"],
+            type_incident=data["data"]["type_incident"],
+            urgency=data["data"]["urgency"]
         )
 
         db.session.add(received_entry)
