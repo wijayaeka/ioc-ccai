@@ -215,7 +215,7 @@ class TextClassifier:
             "urgency":  self.safe_get(values, 11),
         }
 
-        return {"data": label_info2}
+        return {"code":200,"response": label_info2}
 
 
 # Contoh penggunaan

@@ -177,29 +177,29 @@ def predict():
 
         label_info2 = classifier.predict(text)
         # Tambahkan data baru ke dalam dictionary
-        label_info2["request_id"] = request_entry.id
-        label_info2["auth_id"] = request_entry.auth_id
-        label_info2["session_id"] = request_entry.session_id
+        # label_info2["request_id"] = request_entry.id
+        # label_info2["auth_id"] = request_entry.auth_id
+        # label_info2["session_id"] = request_entry.session_id
         response_entry = ResponseData(
             request_id=request_entry.id,
             auth_id=request_entry.auth_id,  # Relasi auth_id
             session_id=request_entry.session_id,  # Relasi session_id
-            category=label_info2["data"]["category"],
-            category_id=label_info2["data"]["category_id"],
-            detail_sub_category=label_info2["data"]["detail_sub_category"],
-            group_level=label_info2["data"]["group_level"],
-            impact=label_info2["data"]["impact"],
-            layanan=label_info2["data"]["layanan"],
-            nama_jenis_perangkat=label_info2["data"]["nama_jenis_perangkat"],
-            priority=label_info2["data"]["priority"],
-            remark=label_info2["data"]["remark"],
-            scope=label_info2["data"]["scope"],
-            sentiment=label_info2["data"]["sentiment"],
-            sub_category=label_info2["data"]["sub_category"],
-            subject=label_info2["data"]["subject"],
-            symptom=label_info2["data"]["symptom"],
-            type_incident=label_info2["data"]["type_incident"],
-            urgency=label_info2["data"]["urgency"]
+            category=label_info2["response"]["category"],
+            category_id=label_info2["response"]["category_id"],
+            detail_sub_category=label_info2["response"]["detail_sub_category"],
+            group_level=label_info2["response"]["group_level"],
+            impact=label_info2["response"]["impact"],
+            layanan=label_info2["response"]["layanan"],
+            nama_jenis_perangkat=label_info2["response"]["nama_jenis_perangkat"],
+            priority=label_info2["response"]["priority"],
+            remark=label_info2["response"]["remark"],
+            scope=label_info2["response"]["scope"],
+            sentiment=label_info2["response"]["sentiment"],
+            sub_category=label_info2["response"]["sub_category"],
+            subject=label_info2["response"]["subject"],
+            symptom=label_info2["response"]["symptom"],
+            type_incident=label_info2["response"]["type_incident"],
+            urgency=label_info2["response"]["urgency"]
         )
         db.session.add(response_entry)
         db.session.commit()
