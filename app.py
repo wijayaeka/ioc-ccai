@@ -11,6 +11,7 @@ from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 import pymysql
 from flask_mail import Mail, Message
+import requests
 
 
 
@@ -35,6 +36,8 @@ app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USERNAME'] = 'threeatech.development@gmail.com'  # Ganti dengan email Anda
 app.config['MAIL_PASSWORD'] = 'qqkl imgy rxbq cjrk'  # Ganti dengan password atau App Password
 app.config['MAIL_DEFAULT_SENDER'] = 'threeatech.development@gmail.com'
+EMAIL_API_URL = "https://xemail.onx.co.id/v1/account/threeatech.development@gmail.com/submit?access_token=b8db9319b16ebca92dd0d6631ca05729db1f43cd690ad0f5862f113541c1f1d5"
+ACCESS_TOKEN = "b8db9319b16ebca92dd0d6631ca05729db1f43cd690ad0f5862f113541c1f1d5"  # Ganti dengan token akses yang valid
 
 mail = Mail(app)
 
@@ -51,7 +54,10 @@ openai_client = openai.AzureOpenAI(
 class OpenAIResponse(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     prompt = db.Column(db.Text, nullable=False)
+    email_sender = db.Column(db.Text, nullable=False)
     created = db.Column(db.BigInteger, nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    response = db.Column(db.Text, nullable=False)
     model = db.Column(db.String(255), nullable=False)
     object_type = db.Column(db.String(255), nullable=False)
     system_fingerprint = db.Column(db.String(255), nullable=True)
@@ -128,9 +134,9 @@ class ReceivedData(db.Model):
     urgency = db.Column(db.String(100))
 
 # Buat tabel di database
-with app.app_context():
-    db.drop_all()  # Hapus tabel lama jika perlu
-    db.create_all()
+# with app.app_context():
+#     db.drop_all()  # Hapus tabel lama jika perlu
+#     db.create_all()
 
 def save_openai_response(response_data):
     with app.app_context():
@@ -140,6 +146,9 @@ def save_openai_response(response_data):
 
             openai_response = OpenAIResponse(
                 prompt=data["prompt"],
+                email_sender=data["email_sender"],
+                content=data["content"],
+                response=data["response"],
                 created=data["created"],
                 model=data["model"],
                 object_type=data["object"],
@@ -209,13 +218,28 @@ def predict():
 def email_checker():
     try:
         email_content = request.form.get("emailContent") or request.data.decode("utf-8")
-        email_sender = request.form.get("email") or request.data.decode("utf-8")
+        # email_sender = request.form.get("email") or request.data.decode("utf-8")
 
         if not email_content:
             return jsonify({"error": "emailContent is required"}), 400
 
         sanitized_content = email_content.replace("\t", "\\t").replace("\n", "\\n")
+        # Ekstrak nilai "from"
+        email_data = json.loads(email_content)
+        from_value = email_data.get("from", "")
 
+        # Gunakan regex untuk mengekstrak nama dan email
+        match = re.match(r'([^<]*)<([^>]+)>', from_value)
+
+        if match:
+            sender_name = match.group(1).strip()  # Menghapus spasi ekstra
+            email_sender = match.group(2).strip()
+        else:
+            sender_name = ""
+            email_sender = from_value.strip()  # Jika tidak ada nama, langsung ambil email
+
+        # print(f"Nama Pengirim: {sender_name}")
+        # print(f"Email Pengirim: {email_sender}")
         prompt = f"""
         Ekstrak informasi berikut dari konten email berikut:
 
@@ -302,9 +326,11 @@ def email_checker():
         # print(response)
         # Bersihkan output JSON
         clean_json_str = re.sub(r"```json|```", "", raw_response).strip()
-
         response_data = [{
             "prompt": prompt,
+            "email_sender":email_sender,
+            "content": sanitized_content,
+            "response": raw_response,
             "created": response.created,
             "model": response.model,
             "object": response.object,
@@ -312,18 +338,21 @@ def email_checker():
             "usage": response.usage.model_dump(),  # Konversi `response.usage` menjadi dictionary
             "prompt_tokens": response.usage.prompt_tokens,
             "total_tokens": response.usage.total_tokens,
-
         }]
 
         # print(response_data)
-        save_openai_response(response_data)
+        # save_openai_response(response_data)
+
+        # print(jsonify(sent_email))
         try:
             ai_response = json.loads(clean_json_str)
         except json.JSONDecodeError as e:
             logging.error(f"JSON Decode Error: {e}")
             return jsonify({"error": "Invalid JSON response", "raw": clean_json_str}), 500
-
+        sent_email = send_email("IOC", "threeatech.development@gmail.com", email_sender, "Respon IOC",
+                                clean_json_str, clean_json_str)
         return jsonify({"response": ai_response})
+
 
     except Exception as e:
         logging.error(f"Error in /email-checker: {e}")
@@ -372,7 +401,7 @@ def receive_data():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/send_email', methods=['GET'])
-def send_email():
+def send_email_old():
     try:
         msg = Message(
             subject="Hello from Flask",
@@ -384,6 +413,34 @@ def send_email():
         return "Email sent successfully!"
     except Exception as e:
         return f"Error sending email: {str(e)}"
+
+
+def send_email(from_name,from_address,to_address,subject,text,html):
+    try:
+        payload = {
+            "from": {
+                "name": from_name,
+                "address": from_address,
+            },
+            "to": [{"address": to_address}],
+            "subject": subject,
+            "text": text,
+            "html": html
+        }
+
+        # Set header dan parameter
+        headers = {"Content-Type": "application/json"}
+        # params = {"access_token": ACCESS_TOKEN}
+
+        # Kirim request ke API
+        response = requests.post(EMAIL_API_URL, json=payload, headers=headers)
+        print(response)
+        return response
+    except Exception as e:
+        logging.error(f"Error in /email-checker: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 
 if __name__ == '__main__':
     # Gantilah `0.0.0.0` dengan `127.0.0.1` untuk menghindari masalah akses di Windows
