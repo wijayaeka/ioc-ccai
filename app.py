@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, render_template_string, request, jsonify
 import openai
 import json
 import re
@@ -38,9 +38,56 @@ app.config['MAIL_PASSWORD'] = 'qqkl imgy rxbq cjrk'  # Ganti dengan password ata
 app.config['MAIL_DEFAULT_SENDER'] = 'threeatech.development@gmail.com'
 EMAIL_API_URL = "https://xemail.onx.co.id/v1/account/threeatech.development@gmail.com/submit?access_token=b8db9319b16ebca92dd0d6631ca05729db1f43cd690ad0f5862f113541c1f1d5"
 ACCESS_TOKEN = "b8db9319b16ebca92dd0d6631ca05729db1f43cd690ad0f5862f113541c1f1d5"  # Ganti dengan token akses yang valid
-
 mail = Mail(app)
+# Template HTML untuk email
+html_template = """
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kelengkapan Data</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; padding: 20px; }
+        .container { max-width: 600px; margin: auto; border: 1px solid #ccc; padding: 20px; border-radius: 10px; }
+        h2 { text-align: center; }
+        .status { font-weight: bold; color: red; }
+        .completed li { color: green; }
+        .missing li { color: red; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Informasi Kelengkapan Data</h2>
+        <p><strong>Pengirim:</strong> {{ sender }}</p>
+        <p class="status">Status: {{ status }}</p>
 
+        {% if missing_fields|length > 0 %}
+        <div class="missing">
+            <h3>Data yang Belum Lengkap:</h3>
+            <ul>
+                {% for field in missing_fields %}
+                    <li>{{ field.detail }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        {% if completed_fields|length > 0 %}
+        <div class="completed">
+            <h3>Data yang Lengkap:</h3>
+            <ul>
+                {% for field in completed_fields %}
+                    <li>{{ field.detail }}: {{ field.value }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>
+
+"""
 # Konfigurasi Logging
 logging.basicConfig(level=logging.INFO)
 
@@ -118,6 +165,7 @@ class ReceivedData(db.Model):
     request_id = db.Column(db.Integer, nullable=False)
     category = db.Column(db.String(100))
     category_id = db.Column(db.String(50))
+    id_layanan = db.Column(db.String(50))
     detail_sub_category = db.Column(db.String(255))
     group_level = db.Column(db.String(50))
     impact = db.Column(db.String(50))
@@ -134,10 +182,21 @@ class ReceivedData(db.Model):
     urgency = db.Column(db.String(100))
 
 # Buat tabel di database
-# with app.app_context():
-#     db.drop_all()  # Hapus tabel lama jika perlu
-#     db.create_all()
+with app.app_context():
+    db.drop_all()  # Hapus tabel lama jika perlu
+    db.create_all()
 
+def clean_json(json_str):
+    # Perbaiki format kutipan ganda di dalam html_body
+    json_str = re.sub(r'(<divdir=)"', r'\1\\"', json_str)  # Perbaiki `html_body`
+
+    # Perbaiki format tanggal yang salah
+    json_str = re.sub(r'(\d{4}-\d{2}-\d{2})(\d{2}:\s?\d{2}:\s?\d{2})', r'\1 \2', json_str)
+
+    # Perbaiki masalah di "rcpt_to" dan "to"
+    json_str = re.sub(r'(\w+@[\w.]+)<(\w+@[\w.]+)>', r'\1', json_str)  # Hapus format <email>
+
+    return json_str
 def save_openai_response(response_data):
     with app.app_context():
         for data in response_data:
@@ -219,140 +278,157 @@ def email_checker():
     try:
         email_content = request.form.get("emailContent") or request.data.decode("utf-8")
         # email_sender = request.form.get("email") or request.data.decode("utf-8")
-
+        message_id = ''
+        sender_name = ''
+        email_sender = ''
+        plain_body = ''
         if not email_content:
             return jsonify({"error": "emailContent is required"}), 400
 
         sanitized_content = email_content.replace("\t", "\\t").replace("\n", "\\n")
-        # Ekstrak nilai "from"
-        email_data = json.loads(email_content)
-        from_value = email_data.get("from", "")
-
-        # Gunakan regex untuk mengekstrak nama dan email
-        match = re.match(r'([^<]*)<([^>]+)>', from_value)
-
-        if match:
-            sender_name = match.group(1).strip()  # Menghapus spasi ekstra
-            email_sender = match.group(2).strip()
-        else:
-            sender_name = ""
-            email_sender = from_value.strip()  # Jika tidak ada nama, langsung ambil email
-
-        # print(f"Nama Pengirim: {sender_name}")
-        # print(f"Email Pengirim: {email_sender}")
-        prompt = f"""
-        Ekstrak informasi berikut dari konten email berikut:
-
-        \"\"\"{sanitized_content}\"\"\".
-
-        Periksa apakah konten email memiliki semua informasi berikut menggunakan pendekatan **similarity matching**:
-
-        1. **Jenis Laporan** (Permintaan/Gangguan/Informasi)  
-        2. **Layanan** (Nama layanan yang disebutkan dalam email)  
-        3. **No. Telp Layanan** (Nomor telepon untuk koordinasi layanan)  
-        4. **Lokasi** (Lokasi layanan yang disebutkan)  
-        5. **Nama Manager Layanan** (Nama manager yang terkait dalam layanan)  
-        6. **Nama Pelapor** (Nama orang yang melaporkan permintaan)  
-        7. **Email Pelapor** (Email pelapor, jika tidak ada, anggap tidak ditemukan)  
-        8. **Nomor Telepon** (Nomor telepon pelapor)  
-        9. **Deskripsi** (Isi permintaan atau masalah yang disebutkan dalam email)  
-
-        Jika ada informasi yang tidak ditemukan atau kosong, catat dalam daftar **missing_fields**.  
-
-        **Format Jawaban:**  
-        Jika semua data ditemukan:  
-
-        ```json
-        
-        
-        {{
-        "sender":{email_sender},
-          "status": "Lengkap",
-          "completed_fields": [
-            {{
-              "Id": 1,
-              "detail": "Jenis Laporan",
-              "value": "Informasi"
-            }},
-            {{
-              "Id": 2,
-              "detail": "Layanan",
-              "value": "Garuda"
-            }}
-          ]
-        }}
-        Jika ada data yang tidak ditemukan:
-        {{
-        "sender":{email_sender},
-  "status": "Tidak Lengkap",
-  "missing_fields": [
-    {{
-      "Id": 5,
-      "detail": "Nama Pelapor"
-    }},
-    {{
-      "Id": 6,
-      "detail": "Deskripsi"
-    }}
-  ],
-  "completed_fields": [
-    {{
-      "Id": 1,
-      "detail": "Jenis Laporan",
-      "value": "Informasi"
-    }},
-    {{
-      "Id": 2,
-      "detail": "Layanan",
-      "value": "Garuda"
-    }}
-  ]
-}}
-"""
-        #print(prompt)
-        # Panggil OpenAI API dengan timeout
-        response = openai_client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system",
-                 "content": "Kamu adalah asisten yang membantu mengidentifikasi informasi dalam email."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0,
-            timeout=10  # Tambahkan timeout 10 detik
-        )
-
-        raw_response = response.choices[0].message.content.strip()
-        # print(response)
-        # Bersihkan output JSON
-        clean_json_str = re.sub(r"```json|```", "", raw_response).strip()
-        response_data = [{
-            "prompt": prompt,
-            "email_sender":email_sender,
-            "content": sanitized_content,
-            "response": raw_response,
-            "created": response.created,
-            "model": response.model,
-            "object": response.object,
-            "system_fingerprint": response.system_fingerprint,
-            "usage": response.usage.model_dump(),  # Konversi `response.usage` menjadi dictionary
-            "prompt_tokens": response.usage.prompt_tokens,
-            "total_tokens": response.usage.total_tokens,
-        }]
-
-        # print(response_data)
-        # save_openai_response(response_data)
-
-        # print(jsonify(sent_email))
+        cleaned_content = clean_json(email_content)
+        # Parse JSON
+        email_data = json.loads(cleaned_content)
+        # print(cleaned_content)
         try:
-            ai_response = json.loads(clean_json_str)
-        except json.JSONDecodeError as e:
-            logging.error(f"JSON Decode Error: {e}")
-            return jsonify({"error": "Invalid JSON response", "raw": clean_json_str}), 500
-        sent_email = send_email("IOC", "threeatech.development@gmail.com", email_sender, "Respon IOC",
-                                clean_json_str, clean_json_str)
-        return jsonify({"response": ai_response})
+            email_data = json.loads(cleaned_content)
+            message_id = email_data.get("message_id")
+            sender_name = email_data.get("sender_name")
+            email_sender = email_data.get("mail_from")
+            plain_body = email_data.get("plain_body")
+            print("Message ID:", message_id)
+            prompt = f"""
+                    Ekstrak informasi berikut dari konten email berikut:
 
+                    \"\"\"{sanitized_content}\"\"\".
+
+                    Periksa apakah konten email memiliki semua informasi berikut menggunakan pendekatan **similarity matching**:
+
+                    ---
+
+                    ### **Instruksi Ekstraksi Data:**  
+                    Identifikasi dan ekstrak informasi berikut:  
+                    
+                    1. **Jenis Laporan** (Permintaan/Gangguan/Informasi)  
+                    2. **Layanan** (Nama layanan yang disebutkan dalam email)  
+                    3. **No. Telp Layanan** (Nomor telepon untuk koordinasi layanan)  
+                    4. **Lokasi** (Lokasi layanan yang disebutkan)  
+                    5. **Nama Manager Layanan** (Nama manager yang terkait dalam layanan)  
+                    6. **Nama Pelapor** (Nama Pelapor yang melaporkan permintaan)  
+                    7. **Email Pelapor** (Email Pelapor, jika tidak ada, anggap tidak ditemukan)  
+                    8. **Nomor Telepon** (Nomor telepon pelapor)  
+                    9. **Deskripsi** (Penjelasan atau tujuan email)  
+                    
+                    ---
+                    
+                    ### **Cara Menentukan "Deskripsi"**
+                    - "Deskripsi" adalah bagian dalam email yang **menjelaskan tujuan utama pengirim**.  
+                    - Bisa berupa **permintaan, keluhan, pertanyaan, atau instruksi tindakan**.  
+                    - Umumnya muncul setelah kata-kata seperti **"minta", "tolong", "butuh", "saya ingin", atau "bisa dibantu"**.  
+                    - Jika tidak ada kata kunci tersebut, gunakan **paragraf terakhir** sebagai kandidat deskripsi.  
+                    
+                    ---
+
+                    Jika ada informasi yang tidak ditemukan atau kosong, catat dalam daftar **missing_fields**.  
+
+                    **Format Jawaban:**  
+                    Jika semua data ditemukan:  
+
+                    ```json
+
+
+                    {{
+                    "sender":{email_sender},
+                      "status": "Lengkap",
+                      "completed_fields": [
+                        {{
+                          "Id": 1,
+                          "detail": "Jenis Laporan",
+                          "value": "Informasi"
+                        }},
+                        {{
+                          "Id": 2,
+                          "detail": "Layanan",
+                          "value": "Garuda"
+                        }}
+                      ]
+                    }}
+                    Jika ada data yang tidak ditemukan:
+                    {{
+                    "sender":{email_sender},
+              "status": "Tidak Lengkap",
+              "missing_fields": [
+                {{
+                  "Id": 5,
+                  "detail": "Nama Pelapor"
+                }},
+                {{
+                  "Id": 6,
+                  "detail": "Deskripsi"
+                }}
+              ],
+              "completed_fields": [
+                {{
+                  "Id": 1,
+                  "detail": "Jenis Laporan",
+                  "value": "Informasi"
+                }},
+                {{
+                  "Id": 2,
+                  "detail": "Layanan",
+                  "value": "Garuda"
+                }}
+              ]
+            }}
+            """
+            # print(prompt)
+            # Panggil OpenAI API dengan timeout
+            response = openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system",
+                     "content": "Kamu adalah asisten yang membantu mengidentifikasi informasi dalam email."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.2,
+                timeout=10  # Tambahkan timeout 10 detik
+            )
+
+            raw_response = response.choices[0].message.content.strip()
+            # print(raw_response)
+            # Bersihkan output JSON
+            clean_json_str = re.sub(r"```json|```", "", raw_response).strip()
+            response_data = [{
+                "prompt": '',
+                "email_sender": email_sender,
+                "content": plain_body,
+                "response": raw_response,
+                "created": response.created,
+                "model": response.model,
+                "object": response.object,
+                "system_fingerprint": response.system_fingerprint,
+                "usage": response.usage.model_dump(),  # Konversi `response.usage` menjadi dictionary
+                "prompt_tokens": response.usage.prompt_tokens,
+                "total_tokens": response.usage.total_tokens,
+            }]
+
+            # print(response_data)
+            save_openai_response(response_data)
+
+            # print(jsonify(sent_email))
+            try:
+                ai_response = json.loads(clean_json_str)
+            except json.JSONDecodeError as e:
+                logging.error(f"JSON Decode Error: {e}")
+                return jsonify({"error": "Invalid JSON response", "raw": clean_json_str}), 500
+            # sent_email = send_email("IOC", "threeatech.development@gmail.com", email_sender, "Respon IOC",
+            #                         clean_json_str, clean_json_str)
+            sent_email = send_email("IOC", "threeatech.development@gmail.com", email_sender, "Respon IOC",
+                                    ai_response,plain_body)
+            return jsonify({"response": ai_response})
+
+        except json.JSONDecodeError as e:
+            print("Error parsing JSON:", e)
 
     except Exception as e:
         logging.error(f"Error in /email-checker: {e}")
@@ -375,6 +451,7 @@ def receive_data():
             request_id=0,
             category=data["data"]["category"],
             category_id=data["data"]["category_id"],
+            id_layanan=data["data"]["id_layanan"],
             detail_sub_category=data["data"]["detail_sub_category"],
             group_level=data["data"]["group_level"],
             impact=data["data"]["impact"],
@@ -414,32 +491,78 @@ def send_email_old():
     except Exception as e:
         return f"Error sending email: {str(e)}"
 
+#
+# def send_email(from_name,from_address,to_address,subject,text,html):
+#     try:
+#         payload = {
+#             "from": {
+#                 "name": from_name,
+#                 "address": from_address,
+#             },
+#             "to": [{"address": to_address}],
+#             "subject": subject,
+#             "text": text,
+#             "html": html
+#         }
+#
+#         # Set header dan parameter
+#         headers = {"Content-Type": "application/json"}
+#         # params = {"access_token": ACCESS_TOKEN}
+#
+#         # Kirim request ke API
+#         response = requests.post(EMAIL_API_URL, json=payload, headers=headers)
+#         print(response)
+#         return response
+#     except Exception as e:
+#         logging.error(f"Error in /email-checker: {e}")
+#         return jsonify({"error": str(e)}), 500
 
-def send_email(from_name,from_address,to_address,subject,text,html):
+# Fungsi untuk mengirim email
+def send_email(from_name, from_address, to_address, subject, json_data, email_content):
     try:
+        html_content = render_template_string(
+            html_template,
+            sender=json_data.get("sender", "Tidak diketahui"),
+            status=json_data.get("status", "Tidak diketahui"),
+            missing_fields=json_data.get("missing_fields", []) or [],
+            completed_fields=json_data.get("completed_fields", []) or []
+        )
+
+        # Format teks sederhana dari data
+        text_content = f"Pengirim: {json_data.get('sender', 'Tidak diketahui')}\nStatus: {json_data.get('status', 'Tidak diketahui')}\n\n"
+
+        # Data yang belum lengkap
+        missing_fields = json_data.get("missing_fields", [])  # Gunakan get untuk menghindari KeyError
+        if missing_fields:
+            text_content += "Data yang belum lengkap:\n"
+            text_content += "\n".join([f"- {field['detail']}" for field in missing_fields])
+            text_content += "\n\n"
+
+        # Data yang lengkap
+        completed_fields = json_data.get("completed_fields", [])
+        if completed_fields:
+            text_content += "Data yang lengkap:\n"
+            text_content += "\n".join([f"- {field['detail']}: {field['value']}" for field in completed_fields])
+
         payload = {
-            "from": {
-                "name": from_name,
-                "address": from_address,
-            },
+            "from": {"name": from_name, "address": from_address},
             "to": [{"address": to_address}],
             "subject": subject,
-            "text": text,
-            "html": html
+            "text": text_content,
+            "html": html_content
         }
 
         # Set header dan parameter
         headers = {"Content-Type": "application/json"}
-        # params = {"access_token": ACCESS_TOKEN}
 
         # Kirim request ke API
         response = requests.post(EMAIL_API_URL, json=payload, headers=headers)
-        print(response)
-        return response
-    except Exception as e:
-        logging.error(f"Error in /email-checker: {e}")
-        return jsonify({"error": str(e)}), 500
 
+        print(response.text)
+        return response.json()
+    except Exception as e:
+        logging.error(f"Error in sending email: {e}")
+        return {"error": str(e)}
 
 
 if __name__ == '__main__':
