@@ -1,14 +1,9 @@
 from flask import Flask, request, jsonify
-from PIL import Image, ExifTags
 import openai
 import json
 import re
 import logging
 from model_service import classifier  # Import service model
-import cv2
-import math
-import numpy as np
-import io
 import os
 from dotenv import load_dotenv
 load_dotenv()
