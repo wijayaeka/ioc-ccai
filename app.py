@@ -12,6 +12,8 @@ from datetime import datetime
 import pymysql
 from flask_mail import Mail, Message
 import requests
+import logging
+
 
 
 
@@ -39,6 +41,9 @@ app.config['MAIL_DEFAULT_SENDER'] = 'threeatech.development@gmail.com'
 EMAIL_API_URL = "https://xemail.onx.co.id/v1/account/threeatech.development@gmail.com/submit?access_token=b8db9319b16ebca92dd0d6631ca05729db1f43cd690ad0f5862f113541c1f1d5"
 ACCESS_TOKEN = "b8db9319b16ebca92dd0d6631ca05729db1f43cd690ad0f5862f113541c1f1d5"  # Ganti dengan token akses yang valid
 mail = Mail(app)
+OMNIX_API_URL = "https://middleware-staging.omnix.co.id/incoming/email/ems-v2/onx_ioc"
+OMNIX_API_URL_DEV = "https://webhook-dev.omnix.co.id/onx_ioc/api/v2/incoming/email/ems-v2"
+
 # Template HTML untuk email
 html_template = """
 <!DOCTYPE html>
@@ -102,6 +107,7 @@ class OpenAIResponse(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     prompt = db.Column(db.Text, nullable=False)
     email_sender = db.Column(db.Text, nullable=False)
+    message_id = db.Column(db.Text, nullable=False)
     created = db.Column(db.BigInteger, nullable=False)
     content = db.Column(db.Text, nullable=False)
     response = db.Column(db.Text, nullable=False)
@@ -181,10 +187,42 @@ class ReceivedData(db.Model):
     type_incident = db.Column(db.String(100))
     urgency = db.Column(db.String(100))
 
+
+class EmailLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    response = db.Column(db.String(255), nullable=False)
+    message_id = db.Column(db.String(255), nullable=False)
+    send_at = db.Column(db.DateTime, nullable=False)
+    queue_id = db.Column(db.String(255), nullable=False)
+
+class EmailResponse(db.Model):
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    account = db.Column(db.String(255))
+    message_id = db.Column(db.String(255), unique=True)
+    from_id = db.Column(db.String(255))
+    from_name = db.Column(db.String(255))
+    subject = db.Column(db.Text)
+    message_text = db.Column(db.Text)
+    message_html = db.Column(db.Text)
+    date_middleware = db.Column(db.DateTime)
+    date_origin = db.Column(db.DateTime)
+
+    def __init__(self, account, message_id, from_id, from_name, subject, message_text, message_html, date_middleware, date_origin):
+        self.account = account
+        self.message_id = message_id
+        self.from_id = from_id
+        self.from_name = from_name
+        self.subject = subject
+        self.message_text = message_text
+        self.message_html = message_html
+        self.date_middleware = date_middleware
+        self.date_origin = date_origin
+
+
 # Buat tabel di database
-# with app.app_context():
-#     db.drop_all()  # Hapus tabel lama jika perlu
-#     db.create_all()
+with app.app_context():
+    db.drop_all()  # Hapus tabel lama jika perlu
+    db.create_all()
 
 def clean_json(json_str):
     # Perbaiki format kutipan ganda di dalam html_body
@@ -207,6 +245,7 @@ def save_openai_response(response_data):
                 prompt=data["prompt"],
                 email_sender=data["email_sender"],
                 content=data["content"],
+                message_id = data["message_id"],
                 response=data["response"],
                 created=data["created"],
                 model=data["model"],
@@ -293,10 +332,13 @@ def email_checker():
         try:
             email_data = json.loads(cleaned_content)
             message_id = email_data.get("message_id")
-            sender_name = email_data.get("sender_name")
+            cleaned_message_id = message_id.strip("<>")
+            sender_name = email_data.get("from")
             email_sender = email_data.get("mail_from")
+            subject = email_data.get("subject")
             plain_body = email_data.get("plain_body")
-            print("Message ID:", message_id)
+            html_body = email_data.get("html_body")
+            print("Message ID:", cleaned_message_id)
             prompt = f"""
                     Ekstrak informasi berikut dari konten email berikut:
 
@@ -317,7 +359,7 @@ def email_checker():
                     6. **Nama Pelapor** (Nama Pelapor yang melaporkan permintaan)  
                     7. **Email Pelapor** (Email Pelapor, jika tidak ada, anggap tidak ditemukan)  
                     8. **Nomor Telepon** (Nomor telepon pelapor)  
-                    9. **Deskripsi** (Penjelasan atau tujuan email)  
+                    9. **Deskripsi** (Penjelasan dari isi email)  
                     
                     ---
                     
@@ -401,6 +443,7 @@ def email_checker():
             response_data = [{
                 "prompt": '',
                 "email_sender": email_sender,
+                "message_id" : cleaned_message_id,
                 "content": plain_body,
                 "response": raw_response,
                 "created": response.created,
@@ -421,10 +464,16 @@ def email_checker():
             except json.JSONDecodeError as e:
                 logging.error(f"JSON Decode Error: {e}")
                 return jsonify({"error": "Invalid JSON response", "raw": clean_json_str}), 500
-            # sent_email = send_email("IOC", "threeatech.development@gmail.com", email_sender, "Respon IOC",
-            #                         clean_json_str, clean_json_str)
-            sent_email = send_email("IOC", "threeatech.development@gmail.com", email_sender, "Respon IOC",
-                                    ai_response,plain_body)
+
+            status = ai_response["status"]
+            if status == "Tidak Lengkap":
+                print(status)
+                sent_email = send_email("IOC", "threeatech.development@gmail.com", email_sender, "Respon IOC",ai_response)
+            elif status == "Lengkap":
+                print(status)
+                sent_api = send_email_to_api(message_id, sender_name, email_sender, subject, plain_body, html_body)
+                           # send_email_to_api(message_id, sender, mail_from, subject, plain_body, html_body):
+                print(sent_api)
             return jsonify({"response": ai_response})
 
         except json.JSONDecodeError as e:
@@ -518,8 +567,9 @@ def send_email_old():
 #         return jsonify({"error": str(e)}), 500
 
 # Fungsi untuk mengirim email
-def send_email(from_name, from_address, to_address, subject, json_data, email_content):
+def send_email(from_name, from_address, to_address, subject, json_data):
     try:
+        # Generate email content
         html_content = render_template_string(
             html_template,
             sender=json_data.get("sender", "Tidak diketahui"),
@@ -528,11 +578,10 @@ def send_email(from_name, from_address, to_address, subject, json_data, email_co
             completed_fields=json_data.get("completed_fields", []) or []
         )
 
-        # Format teks sederhana dari data
         text_content = f"Pengirim: {json_data.get('sender', 'Tidak diketahui')}\nStatus: {json_data.get('status', 'Tidak diketahui')}\n\n"
 
         # Data yang belum lengkap
-        missing_fields = json_data.get("missing_fields", [])  # Gunakan get untuk menghindari KeyError
+        missing_fields = json_data.get("missing_fields", [])
         if missing_fields:
             text_content += "Data yang belum lengkap:\n"
             text_content += "\n".join([f"- {field['detail']}" for field in missing_fields])
@@ -552,17 +601,125 @@ def send_email(from_name, from_address, to_address, subject, json_data, email_co
             "html": html_content
         }
 
-        # Set header dan parameter
-        headers = {"Content-Type": "application/json"}
-
         # Kirim request ke API
-        response = requests.post(EMAIL_API_URL, json=payload, headers=headers)
+        response = requests.post(EMAIL_API_URL, json=payload, headers={"Content-Type": "application/json"})
+        response_data = response.json()
 
-        print(response.text)
-        return response.json()
+        # Simpan respons ke database
+        if "messageId" in response_data:
+            message_id = response_data.get("messageId", "").strip("<>")  # Hapus tanda <>
+            send_at = datetime.fromisoformat(response_data["sendAt"].replace("Z", "+00:00"))
+
+            email_log = EmailLog(
+                response=response_data.get("response", "Unknown"),
+                message_id=message_id,
+                send_at=send_at,
+                queue_id=response_data.get("queueId", "Unknown")
+            )
+
+            db.session.add(email_log)
+            db.session.commit()
+            logging.info(f"Email log saved: {message_id}")
+
+        return response_data
+
     except Exception as e:
+        db.session.rollback()
         logging.error(f"Error in sending email: {e}")
         return {"error": str(e)}
+
+def save_email_response(response_data):
+    try:
+        if response_data.get("status") != 200:
+            return {"error": "Invalid response from API"}
+
+        email_data = response_data.get("data", {})
+
+        # Buat objek EmailResponse
+        email_response = EmailResponse(
+            account=email_data.get("account"),
+            message_id=email_data.get("message_id"),
+            from_id=email_data.get("from_id"),
+            from_name=email_data.get("from_name"),
+            subject=email_data.get("subject"),
+            message_text=email_data.get("message_text"),
+            message_html=email_data.get("message_html"),
+            date_middleware=datetime.fromisoformat(email_data.get("date_middleware").replace("Z", "")) if email_data.get("date_middleware") else None,
+            date_origin=datetime.fromisoformat(email_data.get("date_origin").replace("Z", "")) if email_data.get("date_origin") else None,
+        )
+
+        # Simpan ke database
+        db.session.add(email_response)
+        db.session.commit()
+
+        return jsonify({"message": "Email response saved successfully", "id": email_response.id})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)})
+
+def send_email_to_api(message_id,sender, mail_from,subject,plain_body,html_body):
+    missing_fields = []
+    if not message_id:
+        missing_fields.append("message_id")
+    if not sender:
+        missing_fields.append("sender")
+    if not mail_from:
+        missing_fields.append("mail_from")
+    if not subject:
+        missing_fields.append("subject")
+    if not plain_body:
+        missing_fields.append("plain_body")
+    if not html_body:
+        missing_fields.append("html_body")
+
+    # Jika ada field yang kosong, kembalikan error
+    if missing_fields:
+        return {"error": "Missing required fields", "missing_fields": missing_fields}
+    else:
+        # return response.json("{'status':'ok'}")
+        headers = {
+            "Content-Type": "application/json",
+            "Cookie": "Path=/"
+        }
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        payload = {
+            "id": "AAAAAQAAAPw",
+            "message_id": message_id,
+            "rcpt_to": "omnixstaging@gmail.com <omnixstaging@gmail.com>",
+            "account": "omnixstaging@gmail.com",
+            "tenant_code": "onx_dev",
+            "from": sender + " " + mail_from,
+            "mail_from": mail_from,
+            "in_reply_to": None,
+            "references": None,
+            "subject": subject,
+            "date": current_time,
+            "date_imap_reads": current_time,
+            "cc": None,
+            "plain_body": plain_body,
+            "html_body": html_body,
+            "textAsHtml": None,
+            "type": None,
+            "partId": None,
+            "attachment_quantity": 0,
+            "attachments": [],
+            "info_seqno": None,
+            "uid": 252,
+            "path": "INBOX",
+            "to": "omnixstaging@gmail.com <omnixstaging@gmail.com>",
+            "timestamp": current_time,
+            "bcc": None
+        }
+
+        try:
+            response = requests.post(OMNIX_API_URL_DEV, headers=headers, json=payload)
+            response.raise_for_status()  # Jika ada error HTTP, akan raise exception
+            api_response = response.json()
+            save_email_response(api_response)
+            return response.json()
+        except requests.RequestException as e:
+            return {"error": str(e)}
 
 
 if __name__ == '__main__':
