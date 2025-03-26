@@ -220,9 +220,9 @@ class EmailResponse(db.Model):
 
 
 # Buat tabel di database
-with app.app_context():
-    db.drop_all()  # Hapus tabel lama jika perlu
-    db.create_all()
+# with app.app_context():
+#     db.drop_all()  # Hapus tabel lama jika perlu
+#     db.create_all()
 
 def clean_json(json_str):
     # Perbaiki format kutipan ganda di dalam html_body
