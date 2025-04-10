@@ -45,6 +45,140 @@ OMNIX_API_URL = "https://middleware-staging.omnix.co.id/incoming/email/ems-v2/on
 OMNIX_API_URL_DEV = "https://webhook-dev.omnix.co.id/onx_ioc/api/v2/incoming/email/ems-v2"
 
 # Template HTML untuk email
+html_template2 = """
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Pelaporan Detail</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Arial', sans-serif;
+      background-color: #f7f7f7;
+      color: #333;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container {
+      background-color: #fff;
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      max-width: 800px;
+      width: 100%;
+      padding: 30px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #e0e0e0;
+      padding-bottom: 10px;
+    }
+    .header img.logo {
+      width: 40px;
+      height: 40px;
+      margin-right: 15px;
+    }
+    .header h2 {
+      font-size: 1.8em;
+      color: #4e54c8;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0 auto 20px;
+    }
+    table th, table td {
+      text-align: left;
+      padding: 12px 15px;
+      border-bottom: 1px solid #e0e0e0;
+      vertical-align: top;
+    }
+    table th {
+      width: 30%;
+      background-color: #f9f9f9;
+      font-weight: 600;
+    }
+    .note {
+      margin-top: 20px;
+      padding: 15px;
+      border-left: 4px solid #4e54c8;
+      background-color: #f0f0f0;
+      font-size: 1em;
+      line-height: 1.5;
+      display: flex;
+      align-items: flex-start;
+    }
+    .note img {
+      width: 20px;
+      height: 20px;
+      margin-right: 10px;
+      margin-top: 4px;
+    }
+    @media (max-width: 600px) {
+      .container { padding: 20px; }
+      .header { flex-direction: column; text-align: center; }
+      .header img.logo { margin-bottom: 10px; }
+      table th, table td {
+        display: block;
+        width: 100%;
+      }
+      table th {
+        background-color: transparent;
+        border-bottom: none;
+        padding-bottom: 5px;
+      }
+      table td {
+        border-bottom: 1px solid #e0e0e0;
+        padding-left: 0;
+      }
+    }
+    .logo {
+      height: auto;
+      width: 280px;
+      object-fit: contain;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="https://recruit.infomedia.co.id/assets/frontend/Logo_Infomedia_color.png" alt="Logo Perusahaan" class="logo" />
+      <h2>Detail Laporan</h2>
+    </div>
+
+    <table>
+  <tbody>
+    {% for field in all_fields %}
+      <tr>
+        <th>{{ field.detail }}</th>
+        <td style="background-color: {{ '#fff' if field.value else '#ffd6d6' }};">
+          {{ field.value if field.value else "Belum diisi" }}
+        </td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+
+    <div class="note">
+      <img src="https://static.vecteezy.com/system/resources/previews/012/042/292/original/warning-sign-icon-transparent-background-free-png.png" alt="Alert Icon" />
+      <p>
+        Mohon maaf, isi pelaporan yang kami butuhkan belum terisi secara keseluruhan.  
+        Mohon untuk dapat mengisi tabel ini dengan cara <strong>"Salin Tabel ini secara keseluruhan kemudian isi yang masih belum ada dan kirimkan kembali ke kami ya"</strong>.  
+        Terimakasih atas perhatiannya.
+      </p>
+    </div>
+  </div>
+</body>
+</html>
+"""
 html_template = """
 <!DOCTYPE html>
 <html lang="id">
@@ -570,25 +704,37 @@ def send_email_old():
 def send_email(from_name, from_address, to_address, subject, json_data):
     try:
         # Generate email content
+        # html_content = render_template_string(
+        #     html_template2,
+        #     sender=json_data.get("sender", "Tidak diketahui"),
+        #     status=json_data.get("status", "Tidak diketahui"),
+        #     missing_fields=json_data.get("missing_fields", []) or [],
+        #     completed_fields=json_data.get("completed_fields", []) or []
+        # )
+        missing_fields = json_data.get("missing_fields", []) or []
+        completed_fields = json_data.get("completed_fields", []) or []
+
+        # Gabungkan semua field
+        all_fields = completed_fields + missing_fields
+
         html_content = render_template_string(
-            html_template,
+            html_template2,
             sender=json_data.get("sender", "Tidak diketahui"),
             status=json_data.get("status", "Tidak diketahui"),
-            missing_fields=json_data.get("missing_fields", []) or [],
-            completed_fields=json_data.get("completed_fields", []) or []
+            missing_fields=missing_fields,
+            completed_fields=completed_fields,
+            all_fields=all_fields
         )
 
         text_content = f"Pengirim: {json_data.get('sender', 'Tidak diketahui')}\nStatus: {json_data.get('status', 'Tidak diketahui')}\n\n"
 
         # Data yang belum lengkap
-        missing_fields = json_data.get("missing_fields", [])
         if missing_fields:
             text_content += "Data yang belum lengkap:\n"
             text_content += "\n".join([f"- {field['detail']}" for field in missing_fields])
             text_content += "\n\n"
 
         # Data yang lengkap
-        completed_fields = json_data.get("completed_fields", [])
         if completed_fields:
             text_content += "Data yang lengkap:\n"
             text_content += "\n".join([f"- {field['detail']}: {field['value']}" for field in completed_fields])
