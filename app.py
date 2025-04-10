@@ -859,7 +859,7 @@ def send_email_to_api(message_id,sender, mail_from,subject,plain_body,html_body)
         }
 
         try:
-            response = requests.post(OMNIX_API_URL_DEV, headers=headers, json=payload)
+            response = requests.post(OMNIX_API_URL, headers=headers, json=payload)
             response.raise_for_status()  # Jika ada error HTTP, akan raise exception
             api_response = response.json()
             save_email_response(api_response)
