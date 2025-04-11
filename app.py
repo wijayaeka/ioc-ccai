@@ -835,7 +835,7 @@ def send_email_to_api(message_id,sender, mail_from,subject,plain_body,html_body)
             "rcpt_to": "omnixstaging@gmail.com <omnixstaging@gmail.com>",
             "account": "omnixstaging@gmail.com",
             "tenant_code": "onx_dev",
-            "from": sender + " " + mail_from,
+            "from": sender,
             "mail_from": mail_from,
             "in_reply_to": None,
             "references": None,
@@ -857,15 +857,16 @@ def send_email_to_api(message_id,sender, mail_from,subject,plain_body,html_body)
             "timestamp": current_time,
             "bcc": None
         }
-
+        print(payload)
         try:
             response = requests.post(OMNIX_API_URL, headers=headers, json=payload)
             response.raise_for_status()  # Jika ada error HTTP, akan raise exception
             api_response = response.json()
+            print(api_response)
             save_email_response(api_response)
             return response.json()
         except requests.RequestException as e:
-            return {"error": str(e)}
+            return {"error": str(e),"Response body": response.text}
 
 
 if __name__ == '__main__':
