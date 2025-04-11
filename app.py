@@ -450,6 +450,7 @@ def predict():
 def email_checker():
     try:
         email_content = request.form.get("emailContent") or request.data.decode("utf-8")
+        print(email_content)
         # email_sender = request.form.get("email") or request.data.decode("utf-8")
         message_id = ''
         sender_name = ''
@@ -466,6 +467,7 @@ def email_checker():
         try:
             email_data = json.loads(cleaned_content)
             message_id = email_data.get("message_id")
+            # in_reply_to = email_data.get("from")
             cleaned_message_id = message_id.strip("<>")
             sender_name = email_data.get("from")
             email_sender = email_data.get("mail_from")
