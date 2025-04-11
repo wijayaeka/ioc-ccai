@@ -703,29 +703,29 @@ def email_checker():
             Periksa apakah konten email memiliki semua informasi berikut menggunakan pendekatan **similarity matching**:
 
             ---
-
+            
             ### **Instruksi Ekstraksi Data (Rule Baru):**  
             Identifikasi dan ekstrak informasi berikut:
-
+            
             1. **Jenis Laporan** (Gangguan/Permintaan)  
             2. **Nama Layanan** (Nama layanan yang disebutkan dalam email)  
             3. **No. Telp Pelapor** (Nomor telepon dari pelapor)  
             4. **Nama Perangkat/Aplikasi** (Nama perangkat atau aplikasi yang dilaporkan)  
             5. **URL Aplikasi** (URL aplikasi yang dilaporkan - **opsional**)  
             6. **Uraian Permasalahan** (Penjelasan lengkap dan detail permasalahan atau kebutuhan, termasuk jumlah/no. workstation jika relevan)  
-
+            
             ---
-
+            
             ### **Cara Menentukan "Uraian Permasalahan"**
             - "Uraian Permasalahan" adalah bagian dalam email yang menjelaskan **tujuan utama pengirim**.
             - Fokus pada **keluhan, permintaan, atau kebutuhan tindakan**.
             - Kata kunci umum: "minta", "tolong", "butuh", "kami ingin", "bisa dibantu", "terjadi masalah".
             - Jika tidak ditemukan, gunakan paragraf terakhir sebagai kandidat uraian.
-
+            
             ---
-
-            Jika ada informasi yang tidak ditemukan atau kosong, catat dalam daftar **missing_fields**.
-
+            
+            Jika ada informasi yang tidak ditemukan atau kosong, catat dalam daftar **missing_fields**, kecuali **URL Aplikasi** yang **boleh kosong**.
+            
             ---
 
             ### **Format Jawaban:**  
