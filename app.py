@@ -13,6 +13,7 @@ import pymysql
 from flask_mail import Mail, Message
 import requests
 import logging
+from flask_migrate import Migrate
 
 
 
@@ -31,6 +32,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("SQLALCHEMY_DATABASE_URI")
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
+migrate = Migrate(app, db)
 # Konfigurasi SMTP Gmail
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
@@ -43,7 +45,141 @@ ACCESS_TOKEN = "b8db9319b16ebca92dd0d6631ca05729db1f43cd690ad0f5862f113541c1f1d5
 mail = Mail(app)
 OMNIX_API_URL = "https://middleware-staging.omnix.co.id/incoming/email/ems-v2/onx_ioc"
 OMNIX_API_URL_DEV = "https://webhook-dev.omnix.co.id/onx_ioc/api/v2/incoming/email/ems-v2"
+html_template3 = """
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Pelaporan Detail</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Arial', sans-serif;
+      background-color: #f7f7f7;
+      color: #333;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container {
+      background-color: #fff;
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      max-width: 800px;
+      width: 100%;
+      padding: 30px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #e0e0e0;
+      padding-bottom: 10px;
+    }
+    .header img.logo {
+      width: 40px;
+      height: 40px;
+      margin-right: 15px;
+    }
+    .header h2 {
+      font-size: 1.8em;
+      color: #4e54c8;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0 auto 20px;
+    }
+    table th, table td {
+      text-align: left;
+      padding: 12px 15px;
+      border-bottom: 1px solid #e0e0e0;
+      vertical-align: top;
+    }
+    table th {
+      width: 30%;
+      background-color: #f9f9f9;
+      font-weight: 600;
+    }
+    .note {
+      margin-top: 20px;
+      padding: 15px;
+      border-left: 4px solid #4e54c8;
+      background-color: #f0f0f0;
+      font-size: 1em;
+      line-height: 1.5;
+      display: flex;
+      align-items: flex-start;
+    }
+    .note img {
+      width: 20px;
+      height: 20px;
+      margin-right: 10px;
+      margin-top: 4px;
+    }
+    @media (max-width: 600px) {
+      .container { padding: 20px; }
+      .header { flex-direction: column; text-align: center; }
+      .header img.logo { margin-bottom: 10px; }
+      table th, table td {
+        display: block;
+        width: 100%;
+      }
+      table th {
+        background-color: transparent;
+        border-bottom: none;
+        padding-bottom: 5px;
+      }
+      table td {
+        border-bottom: 1px solid #e0e0e0;
+        padding-left: 0;
+      }
+    }
+    .logo {
+      height: auto;
+      width: 280px;
+      object-fit: contain;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="https://recruit.infomedia.co.id/assets/frontend/Logo_Infomedia_color.png" alt="Logo Perusahaan" class="logo" />
+      <h2>Detail Laporan</h2>
+    </div>
 
+    <table>
+  <tbody>
+    {% for field in all_fields %}
+      <tr>
+        <th>{{ field.detail }}</th>
+        <td style="background-color: {{ '#fff' if field.value else '#ffd6d6' }};">
+          {{ field.value if field.value else "Belum diisi" }}
+        </td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+
+    <div class="note">
+      <img src="https://static.vecteezy.com/system/resources/previews/012/042/292/original/warning-sign-icon-transparent-background-free-png.png" alt="Alert Icon" />
+      <p>
+        Mohon maaf, isi pelaporan yang kami butuhkan belum terisi secara keseluruhan.  
+        Mohon untuk dapat mengisi tabel ini dengan cara <strong>"Salin Tabel ini secara keseluruhan kemudian isi yang masih belum ada dan kirimkan kembali ke kami ya"</strong>.  
+        Terimakasih atas perhatiannya.
+      </p>
+    </div>
+  </div>
+</body>
+</html>
+
+"""
 # Template HTML untuk email
 html_template2 = """
 <!DOCTYPE html>
@@ -475,90 +611,196 @@ def email_checker():
             plain_body = email_data.get("plain_body")
             html_body = email_data.get("html_body")
             print("Message ID:", cleaned_message_id)
-            prompt = f"""
-                    Ekstrak informasi berikut dari konten email berikut:
+            # prompt = f"""
+            #         Ekstrak informasi berikut dari konten email berikut:
+            #
+            #         \"\"\"{sanitized_content}\"\"\".
+            #
+            #         Periksa apakah konten email memiliki semua informasi berikut menggunakan pendekatan **similarity matching**:
+            #
+            #         ---
+            #
+            #         ### **Instruksi Ekstraksi Data:**
+            #         Identifikasi dan ekstrak informasi berikut:
+            #
+            #         1. **Jenis Laporan** (Permintaan/Gangguan/Informasi)
+            #         2. **Layanan** (Nama layanan yang disebutkan dalam email)
+            #         3. **No. Telp Layanan** (Nomor telepon untuk koordinasi layanan)
+            #         4. **Lokasi** (Lokasi layanan yang disebutkan)
+            #         5. **Nama Manager Layanan** (Nama manager yang terkait dalam layanan)
+            #         6. **Nama Pelapor** (Nama Pelapor yang melaporkan permintaan)
+            #         7. **Email Pelapor** (Email Pelapor, jika tidak ada, anggap tidak ditemukan)
+            #         8. **Nomor Telepon** (Nomor telepon pelapor)
+            #         9. **Deskripsi** (Penjelasan dari isi email)
+            #
+            #         ---
+            #
+            #         ### **Cara Menentukan "Deskripsi"**
+            #         - "Deskripsi" adalah bagian dalam email yang **menjelaskan tujuan utama pengirim**.
+            #         - Bisa berupa **permintaan, keluhan, pertanyaan, atau instruksi tindakan**.
+            #         - Umumnya muncul setelah kata-kata seperti **"minta", "tolong", "butuh", "saya ingin", atau "bisa dibantu"**.
+            #         - Jika tidak ada kata kunci tersebut, gunakan **paragraf terakhir** sebagai kandidat deskripsi.
+            #
+            #         ---
+            #
+            #         Jika ada informasi yang tidak ditemukan atau kosong, catat dalam daftar **missing_fields**.
+            #
+            #         **Format Jawaban:**
+            #         Jika semua data ditemukan:
+            #
+            #         ```json
+            #
+            #
+            #         {{
+            #         "sender":{email_sender},
+            #           "status": "Lengkap",
+            #           "completed_fields": [
+            #             {{
+            #               "Id": 1,
+            #               "detail": "Jenis Laporan",
+            #               "value": "Informasi"
+            #             }},
+            #             {{
+            #               "Id": 2,
+            #               "detail": "Layanan",
+            #               "value": "Garuda"
+            #             }}
+            #           ]
+            #         }}
+            #         Jika ada data yang tidak ditemukan:
+            #         {{
+            #         "sender":{email_sender},
+            #   "status": "Tidak Lengkap",
+            #   "missing_fields": [
+            #     {{
+            #       "Id": 5,
+            #       "detail": "Nama Pelapor"
+            #     }},
+            #     {{
+            #       "Id": 6,
+            #       "detail": "Deskripsi"
+            #     }}
+            #   ],
+            #   "completed_fields": [
+            #     {{
+            #       "Id": 1,
+            #       "detail": "Jenis Laporan",
+            #       "value": "Informasi"
+            #     }},
+            #     {{
+            #       "Id": 2,
+            #       "detail": "Layanan",
+            #       "value": "Garuda"
+            #     }}
+            #   ]
+            # }}
+            # """
+            prompt =f"""
+            Ekstrak informasi berikut dari konten email berikut:
 
-                    \"\"\"{sanitized_content}\"\"\".
+            \"\"\"{sanitized_content}\"\"\"
 
-                    Periksa apakah konten email memiliki semua informasi berikut menggunakan pendekatan **similarity matching**:
+            Periksa apakah konten email memiliki semua informasi berikut menggunakan pendekatan **similarity matching**:
 
-                    ---
+            ---
 
-                    ### **Instruksi Ekstraksi Data:**  
-                    Identifikasi dan ekstrak informasi berikut:  
-                    
-                    1. **Jenis Laporan** (Permintaan/Gangguan/Informasi)  
-                    2. **Layanan** (Nama layanan yang disebutkan dalam email)  
-                    3. **No. Telp Layanan** (Nomor telepon untuk koordinasi layanan)  
-                    4. **Lokasi** (Lokasi layanan yang disebutkan)  
-                    5. **Nama Manager Layanan** (Nama manager yang terkait dalam layanan)  
-                    6. **Nama Pelapor** (Nama Pelapor yang melaporkan permintaan)  
-                    7. **Email Pelapor** (Email Pelapor, jika tidak ada, anggap tidak ditemukan)  
-                    8. **Nomor Telepon** (Nomor telepon pelapor)  
-                    9. **Deskripsi** (Penjelasan dari isi email)  
-                    
-                    ---
-                    
-                    ### **Cara Menentukan "Deskripsi"**
-                    - "Deskripsi" adalah bagian dalam email yang **menjelaskan tujuan utama pengirim**.  
-                    - Bisa berupa **permintaan, keluhan, pertanyaan, atau instruksi tindakan**.  
-                    - Umumnya muncul setelah kata-kata seperti **"minta", "tolong", "butuh", "saya ingin", atau "bisa dibantu"**.  
-                    - Jika tidak ada kata kunci tersebut, gunakan **paragraf terakhir** sebagai kandidat deskripsi.  
-                    
-                    ---
+            ### **Instruksi Ekstraksi Data (Rule Baru):**  
+            Identifikasi dan ekstrak informasi berikut:
 
-                    Jika ada informasi yang tidak ditemukan atau kosong, catat dalam daftar **missing_fields**.  
+            1. **Jenis Laporan** (Gangguan/Permintaan)  
+            2. **Nama Layanan** (Nama layanan yang disebutkan dalam email)  
+            3. **No. Telp Pelapor** (Nomor telepon dari pelapor)  
+            4. **Nama Perangkat/Aplikasi** (Nama perangkat atau aplikasi yang dilaporkan)  
+            5. **URL Aplikasi** (URL aplikasi yang dilaporkan - **opsional**)  
+            6. **Uraian Permasalahan** (Penjelasan lengkap dan detail permasalahan atau kebutuhan, termasuk jumlah/no. workstation jika relevan)  
 
-                    **Format Jawaban:**  
-                    Jika semua data ditemukan:  
+            ---
 
-                    ```json
+            ### **Cara Menentukan "Uraian Permasalahan"**
+            - "Uraian Permasalahan" adalah bagian dalam email yang menjelaskan **tujuan utama pengirim**.
+            - Fokus pada **keluhan, permintaan, atau kebutuhan tindakan**.
+            - Kata kunci umum: "minta", "tolong", "butuh", "kami ingin", "bisa dibantu", "terjadi masalah".
+            - Jika tidak ditemukan, gunakan paragraf terakhir sebagai kandidat uraian.
 
+            ---
 
-                    {{
-                    "sender":{email_sender},
-                      "status": "Lengkap",
-                      "completed_fields": [
-                        {{
-                          "Id": 1,
-                          "detail": "Jenis Laporan",
-                          "value": "Informasi"
-                        }},
-                        {{
-                          "Id": 2,
-                          "detail": "Layanan",
-                          "value": "Garuda"
-                        }}
-                      ]
-                    }}
-                    Jika ada data yang tidak ditemukan:
-                    {{
-                    "sender":{email_sender},
-              "status": "Tidak Lengkap",
-              "missing_fields": [
-                {{
-                  "Id": 5,
-                  "detail": "Nama Pelapor"
-                }},
-                {{
-                  "Id": 6,
-                  "detail": "Deskripsi"
-                }}
-              ],
+            Jika ada informasi yang tidak ditemukan atau kosong, catat dalam daftar **missing_fields**.
+
+            ---
+
+            ### **Format Jawaban:**  
+            Jika semua data ditemukan:  
+
+            ```json
+            {{
+              "sender": {email_sender},
+              "status": "Lengkap",
               "completed_fields": [
                 {{
                   "Id": 1,
                   "detail": "Jenis Laporan",
-                  "value": "Informasi"
+                  "value": "Permintaan"
                 }},
                 {{
                   "Id": 2,
-                  "detail": "Layanan",
-                  "value": "Garuda"
+                  "detail": "Nama Layanan",
+                  "value": "Layanan Internet XYZ"
+                }},
+                {{
+                  "Id": 3,
+                  "detail": "No. Telp Pelapor",
+                  "value": "081234567890"
+                }},
+                {{
+                  "Id": 4,
+                  "detail": "Nama Perangkat/Aplikasi",
+                  "value": "Aplikasi e-Monitoring"
+                }},
+                {{
+                  "Id": 5,
+                  "detail": "URL Aplikasi",
+                  "value": "http://app.emonitoring.com"
+                }},
+                {{
+                  "Id": 6,
+                  "detail": "Uraian Permasalahan",
+                  "value": "Tolong bantu cek aplikasi e-Monitoring tidak bisa diakses pada 5 workstation sejak pukul 10 pagi."
                 }}
               ]
             }}
-            """
+            
+    Jika ada data yang tidak ditemukan:
+            {{
+                  "sender": {email_sender},
+                  "status": "Tidak Lengkap",
+                  "missing_fields": [
+                    {{
+                      "Id": 4,
+                      "detail": "Nama Perangkat/Aplikasi"
+                    }},
+                    {{
+                      "Id": 6,
+                      "detail": "Uraian Permasalahan"
+                    }}
+                  ],
+                  "completed_fields": [
+                    {{
+                      "Id": 1,
+                      "detail": "Jenis Laporan",
+                      "value": "Gangguan"
+                    }},
+                    {{
+                      "Id": 2,
+                      "detail": "Nama Layanan",
+                      "value": "Jaringan Kantor"
+                    }},
+                    {{
+                      "Id": 3,
+                      "detail": "No. Telp Pelapor",
+                      "value": "085678901234"
+                    }}
+                  ]
+                }}"""
             # print(prompt)
             # Panggil OpenAI API dengan timeout
             response = openai_client.chat.completions.create(
@@ -604,12 +846,12 @@ def email_checker():
             status = ai_response["status"]
             if status == "Tidak Lengkap":
                 print(status)
-                sent_email = send_email("IOC", "threeatech.development@gmail.com", email_sender, "Respon IOC",ai_response)
+                sent_email = send_email("IOC", "threeatech.development@gmail.com", email_sender, "IOC Infomedia Nusantara",ai_response)
             elif status == "Lengkap":
                 print(status)
-                sent_api = send_email_to_api(message_id, sender_name, email_sender, subject, plain_body, html_body)
-                           # send_email_to_api(message_id, sender, mail_from, subject, plain_body, html_body):
-                print(sent_api)
+                # sent_api = send_email_to_api(message_id, sender_name, email_sender, subject, plain_body, html_body)
+                #            # send_email_to_api(message_id, sender, mail_from, subject, plain_body, html_body):
+                # print(sent_api)
             return jsonify({"response": ai_response})
 
         except json.JSONDecodeError as e:
@@ -705,22 +947,12 @@ def send_email_old():
 # Fungsi untuk mengirim email
 def send_email(from_name, from_address, to_address, subject, json_data):
     try:
-        # Generate email content
-        # html_content = render_template_string(
-        #     html_template2,
-        #     sender=json_data.get("sender", "Tidak diketahui"),
-        #     status=json_data.get("status", "Tidak diketahui"),
-        #     missing_fields=json_data.get("missing_fields", []) or [],
-        #     completed_fields=json_data.get("completed_fields", []) or []
-        # )
-        missing_fields = json_data.get("missing_fields", []) or []
-        completed_fields = json_data.get("completed_fields", []) or []
-
-        # Gabungkan semua field
+        missing_fields = json_data.get("missing_fields", [])
+        completed_fields = json_data.get("completed_fields", [])
         all_fields = completed_fields + missing_fields
 
         html_content = render_template_string(
-            html_template2,
+            html_template3,
             sender=json_data.get("sender", "Tidak diketahui"),
             status=json_data.get("status", "Tidak diketahui"),
             missing_fields=missing_fields,
@@ -730,13 +962,11 @@ def send_email(from_name, from_address, to_address, subject, json_data):
 
         text_content = f"Pengirim: {json_data.get('sender', 'Tidak diketahui')}\nStatus: {json_data.get('status', 'Tidak diketahui')}\n\n"
 
-        # Data yang belum lengkap
         if missing_fields:
             text_content += "Data yang belum lengkap:\n"
             text_content += "\n".join([f"- {field['detail']}" for field in missing_fields])
             text_content += "\n\n"
 
-        # Data yang lengkap
         if completed_fields:
             text_content += "Data yang lengkap:\n"
             text_content += "\n".join([f"- {field['detail']}: {field['value']}" for field in completed_fields])
@@ -749,13 +979,11 @@ def send_email(from_name, from_address, to_address, subject, json_data):
             "html": html_content
         }
 
-        # Kirim request ke API
         response = requests.post(EMAIL_API_URL, json=payload, headers={"Content-Type": "application/json"})
         response_data = response.json()
 
-        # Simpan respons ke database
         if "messageId" in response_data:
-            message_id = response_data.get("messageId", "").strip("<>")  # Hapus tanda <>
+            message_id = response_data.get("messageId", "").strip("<>")
             send_at = datetime.fromisoformat(response_data["sendAt"].replace("Z", "+00:00"))
 
             email_log = EmailLog(
@@ -772,8 +1000,7 @@ def send_email(from_name, from_address, to_address, subject, json_data):
         return response_data
 
     except Exception as e:
-        db.session.rollback()
-        logging.error(f"Error in sending email: {e}")
+        logging.error(f"Error in sending email: {str(e)}")
         return {"error": str(e)}
 
 def save_email_response(response_data):
