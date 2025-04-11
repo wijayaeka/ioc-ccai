@@ -636,7 +636,7 @@ def receive_data():
             request_id=0,
             category=data["data"]["category"],
             category_id=data["data"]["category_id"],
-            id_layanan=data["data"]["id_layanan"],
+            # id_layanan=data["data"]["id_layanan"],
             detail_sub_category=data["data"]["detail_sub_category"],
             group_level=data["data"]["group_level"],
             impact=data["data"]["impact"],
