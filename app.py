@@ -586,7 +586,7 @@ def predict():
 def email_checker():
     try:
         email_content = request.form.get("emailContent") or request.data.decode("utf-8")
-        print(email_content)
+        # print(email_content)
         # email_sender = request.form.get("email") or request.data.decode("utf-8")
         message_id = ''
         sender_name = ''
@@ -610,7 +610,7 @@ def email_checker():
             subject = email_data.get("subject")
             plain_body = email_data.get("plain_body")
             html_body = email_data.get("html_body")
-            print("Message ID:", cleaned_message_id)
+            # print("Message ID:", cleaned_message_id)
             # prompt = f"""
             #         Ekstrak informasi berikut dari konten email berikut:
             #
@@ -849,8 +849,8 @@ def email_checker():
                 sent_email = send_email("IOC", "threeatech.development@gmail.com", email_sender, "IOC Infomedia Nusantara",ai_response)
             elif status == "Lengkap":
                 print(status)
-                # sent_api = send_email_to_api(message_id, sender_name, email_sender, subject, plain_body, html_body)
-                #            # send_email_to_api(message_id, sender, mail_from, subject, plain_body, html_body):
+                sent_api = send_email_to_api(message_id, sender_name, email_sender, subject, plain_body, html_body)
+                           # send_email_to_api(message_id, sender, mail_from, subject, plain_body, html_body):
                 # print(sent_api)
             return jsonify({"response": ai_response})
 
@@ -1086,12 +1086,12 @@ def send_email_to_api(message_id,sender, mail_from,subject,plain_body,html_body)
             "timestamp": current_time,
             "bcc": None
         }
-        print(payload)
+        # print(payload)
         try:
             response = requests.post(OMNIX_API_URL, headers=headers, json=payload)
             response.raise_for_status()  # Jika ada error HTTP, akan raise exception
             api_response = response.json()
-            print(api_response)
+            # print(api_response)
             save_email_response(api_response)
             return response.json()
         except requests.RequestException as e:
