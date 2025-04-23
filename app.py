@@ -898,7 +898,7 @@ def receive_data():
         db.session.add(received_entry)
         db.session.commit()
 
-        return jsonify({"message": "Data received and saved successfully", "received_id": received_entry.id}), 201
+        return jsonify({"message": "Data received and saved successfully", "received_id": received_entry.id}), 200
 
     except Exception as e:
         db.session.rollback()
