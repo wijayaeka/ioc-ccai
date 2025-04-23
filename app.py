@@ -644,6 +644,29 @@ def email_checker():
                     return None
 
             # Buat objek model
+            email = IncomingEmail(
+                message_id=email_data.get("message_id"),
+                from_id=from_id,
+                from_name=from_name,
+                subject=email_data.get("subject"),
+                # rcpt_to=email_data.get("subject"),
+                account=email_data.get("account"),
+                tenant_code=email_data.get("tenant_code"),
+                in_reply_to=email_data.get("in_reply_to"),
+                plain_body=email_data.get("plain_body"),
+                html_body=email_data.get("html_body"),
+                attachment_quantity=email_data.get("attachment_quantity"),
+                uid=email_data.get("uid"),
+                path=email_data.get("path"),
+                to=email_data.get("to"),
+                timestamp=email_data.get("timestamp"),
+                id_incoming_mail=email_data.get("id_incoming_mail"),
+                try_attempt=email_data.get("try_attempt"),
+                message_text=email_data.get("plain_body", ""),
+                message_html=email_data.get("html_body", ""),
+                date_middleware=parse_date(email_data.get("date_imap_reads"), "%Y-%m-%d %H: %M: %S"),
+                date_origin=parse_date(email_data.get("timestamp")),
+            )
             db.session.add(email)
             db.session.commit()
 
