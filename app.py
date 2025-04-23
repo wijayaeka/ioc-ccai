@@ -513,6 +513,15 @@ class IncomingEmail(db.Model):
                 setattr(self, field, kwargs[field])
 
 
+class LogWebhookEmail(db.Model):
+    # id = db.Column(db.String(20), primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    content = db.Column(db.Text)
+
+    def __init__(self, **kwargs):
+        for field in kwargs:
+            if hasattr(self, field):
+                setattr(self, field, kwargs[field])
 
 
 # Buat tabel di database
@@ -615,6 +624,11 @@ def email_checker():
         if not email_content:
             return jsonify({"error": "emailContent is required"}), 400
 
+        loging = LogWebhookEmail(
+            content=email_content
+        )
+        db.session.add(loging)
+        db.session.commit()
         sanitized_content = email_content.replace("\t", "\\t").replace("\n", "\\n")
         cleaned_content = clean_json(email_content)
         email_data = json.loads(cleaned_content)
@@ -884,7 +898,7 @@ def receive_data():
         db.session.add(received_entry)
         db.session.commit()
 
-        return jsonify({"message": "Data received and saved successfully", "received_id": received_entry.id}), 200
+        return jsonify({"message": "Data received and saved successfully", "received_id": received_entry.id}), 201
 
     except Exception as e:
         db.session.rollback()
