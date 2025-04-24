@@ -846,7 +846,7 @@ def email_checker():
             status = ai_response["status"]
             if status == "Tidak Lengkap":
                 print(status)
-                sent_email = send_email("IOC", "threeatech.development@gmail.com", email_sender, "IOC Infomedia Nusantara",ai_response)
+                sent_email = send_email("IOC", "threeatech.development@gmail.com", email_sender, subject, ai_response)
             elif status == "Lengkap":
                 print(status)
                 sent_api = send_email_to_api(message_id, sender_name, email_sender, subject, plain_body, html_body)
@@ -946,6 +946,7 @@ def send_email_old():
 
 # Fungsi untuk mengirim email
 def send_email(from_name, from_address, to_address, subject, json_data):
+# send_email("IOC", "threeatech.development@gmail.com", email_sender, "IOC Infomedia Nusantara",ai_response)
     try:
         missing_fields = json_data.get("missing_fields", [])
         completed_fields = json_data.get("completed_fields", [])
