@@ -633,29 +633,29 @@ def email_checker():
         cleaned_content = clean_json(email_content)
         email_data = json.loads(cleaned_content)
         in_reply_to = email_data.get("in_reply_to")
-        if in_reply_to:
-            # print("Email Reply")
-            print("Email Reply")
-            return jsonify({"error": "email is reply"})
-        else:
-            print("kosong")
+        # if in_reply_to:
+        #     # print("Email Reply")
+        #     print("Email Reply")
+        #     return jsonify({"error": "email is reply"})
+        # else:
+        print("kosong")
             # Ekstrak dan bersihkan data penting
-            from_raw = email_data.get("from", "")
-            if "<" in from_raw and ">" in from_raw:
+        from_raw = email_data.get("from", "")
+        if "<" in from_raw and ">" in from_raw:
                 from_name = from_raw.split("<")[0].strip()
                 from_id = from_raw.split("<")[1].replace(">", "").strip()
-            else:
+        else:
                 from_name = from_raw
                 from_id = email_data.get("mail_from")
 
             # Parse tanggal dengan try-except fallback
-            from datetime import datetime
+        from datetime import datetime
 
-            def parse_date(date_str, fallback_format="%Y-%m-%d %H:%M:%S"):
-                try:
-                    return datetime.strptime(date_str.strip(), fallback_format)
-                except Exception:
-                    return None
+        def parse_date(date_str, fallback_format="%Y-%m-%d %H:%M:%S"):
+            try:
+                return datetime.strptime(date_str.strip(), fallback_format)
+            except Exception:
+                return None
 
             # Buat objek model
             email = IncomingEmail(
@@ -974,7 +974,7 @@ def send_email(from_name, from_address, to_address, subject, json_data):
         payload = {
             "from": {"name": from_name, "address": from_address},
             "to": [{"address": to_address}],
-            "subject": "Re:"+ subject,
+            "subject": "[Re]"+ subject,
             "text": text_content,
             "html": html_content
         }
