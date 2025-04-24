@@ -971,14 +971,15 @@ def send_email(from_name, from_address, to_address, subject, json_data):
             text_content += "Data yang lengkap:\n"
             text_content += "\n".join([f"- {field['detail']}: {field['value']}" for field in completed_fields])
 
+        clean_subject = subject.removeprefix("Re: ")
         payload = {
             "from": {"name": from_name, "address": from_address},
             "to": [{"address": to_address}],
-            "subject": "[Re]"+ subject,
+            "subject": "[Re]"+ clean_subject,
             "text": text_content,
             "html": html_content
         }
-
+        print(payload)
         response = requests.post(EMAIL_API_URL, json=payload, headers={"Content-Type": "application/json"})
         # print(payload)
         response_data = response.json()
