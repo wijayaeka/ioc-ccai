@@ -974,7 +974,7 @@ def send_email(from_name, from_address, to_address, subject, json_data):
         payload = {
             "from": {"name": from_name, "address": from_address},
             "to": [{"address": to_address}],
-            "subject": subject,
+            "subject": "Re:"+ subject,
             "text": text_content,
             "html": html_content
         }
