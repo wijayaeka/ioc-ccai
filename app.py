@@ -639,14 +639,14 @@ def email_checker():
         #     return jsonify({"error": "email is reply"})
         # else:
         print("kosong")
-            # Ekstrak dan bersihkan data penting
+        # Ekstrak dan bersihkan data penting
         from_raw = email_data.get("from", "")
         if "<" in from_raw and ">" in from_raw:
-                from_name = from_raw.split("<")[0].strip()
-                from_id = from_raw.split("<")[1].replace(">", "").strip()
+            from_name = from_raw.split("<")[0].strip()
+            from_id = from_raw.split("<")[1].replace(">", "").strip()
         else:
-                from_name = from_raw
-                from_id = email_data.get("mail_from")
+            from_name = from_raw
+            from_id = email_data.get("mail_from")
 
             # Parse tanggal dengan try-except fallback
         from datetime import datetime
@@ -684,18 +684,18 @@ def email_checker():
             db.session.add(email)
             db.session.commit()
 
-            try:
-                email_data = json.loads(cleaned_content)
-                message_id = email_data.get("message_id")
-                # in_reply_to = email_data.get("from")
-                cleaned_message_id = message_id.strip("<>")
-                sender_name = email_data.get("from")
-                email_sender = email_data.get("mail_from")
-                subject = email_data.get("subject")
-                plain_body = email_data.get("plain_body")
-                html_body = email_data.get("html_body")
+        try:
+            email_data = json.loads(cleaned_content)
+            message_id = email_data.get("message_id")
+            # in_reply_to = email_data.get("from")
+            cleaned_message_id = message_id.strip("<>")
+            sender_name = email_data.get("from")
+            email_sender = email_data.get("mail_from")
+            subject = email_data.get("subject")
+            plain_body = email_data.get("plain_body")
+            html_body = email_data.get("html_body")
 
-                prompt =f"""
+            prompt =f"""
                 Ekstrak informasi berikut dari konten email berikut:
     
                 \"\"\"{sanitized_content}\"\"\"
@@ -803,7 +803,7 @@ def email_checker():
                     }}"""
                 # print(prompt)
                 # Panggil OpenAI API dengan timeout
-                response = openai_client.chat.completions.create(
+            response = openai_client.chat.completions.create(
                     model="gpt-4o",
                     messages=[
                         {"role": "system",
@@ -812,13 +812,13 @@ def email_checker():
                     ],
                     temperature=0.2,
                     timeout=10  # Tambahkan timeout 10 detik
-                )
+            )
 
-                raw_response = response.choices[0].message.content.strip()
+            raw_response = response.choices[0].message.content.strip()
                 # print(raw_response)
                 # Bersihkan output JSON
-                clean_json_str = re.sub(r"```json|```", "", raw_response).strip()
-                response_data = [{
+            clean_json_str = re.sub(r"```json|```", "", raw_response).strip()
+            response_data = [{
                     "prompt": '',
                     "email_sender": email_sender,
                     "message_id" : cleaned_message_id,
@@ -831,31 +831,31 @@ def email_checker():
                     "usage": response.usage.model_dump(),  # Konversi `response.usage` menjadi dictionary
                     "prompt_tokens": response.usage.prompt_tokens,
                     "total_tokens": response.usage.total_tokens,
-                }]
+            }]
 
                 # print(response_data)
-                save_openai_response(response_data)
+            save_openai_response(response_data)
 
                 # print(jsonify(sent_email))
-                try:
-                    ai_response = json.loads(clean_json_str)
-                except json.JSONDecodeError as e:
-                    logging.error(f"JSON Decode Error: {e}")
-                    return jsonify({"error": "Invalid JSON response", "raw": clean_json_str}), 500
-
-                status = ai_response["status"]
-                if status == "Tidak Lengkap":
-                    print(status)
-                    sent_email = send_email("IOC", "threeatech.development@gmail.com", email_sender, "IOC Infomedia Nusantara",ai_response)
-                elif status == "Lengkap":
-                    print(status)
-                    sent_api = send_email_to_api(message_id, sender_name, email_sender, subject, plain_body, html_body)
-                               # send_email_to_api(message_id, sender, mail_from, subject, plain_body, html_body):
-                    print(sent_api)
-                return jsonify({"response": ai_response})
-
+            try:
+                ai_response = json.loads(clean_json_str)
             except json.JSONDecodeError as e:
-                print("Error parsing JSON:", e)
+                logging.error(f"JSON Decode Error: {e}")
+                return jsonify({"error": "Invalid JSON response", "raw": clean_json_str}), 500
+
+            status = ai_response["status"]
+            if status == "Tidak Lengkap":
+                print(status)
+                sent_email = send_email("IOC", "threeatech.development@gmail.com", email_sender, "IOC Infomedia Nusantara",ai_response)
+            elif status == "Lengkap":
+                print(status)
+                sent_api = send_email_to_api(message_id, sender_name, email_sender, subject, plain_body, html_body)
+                               # send_email_to_api(message_id, sender, mail_from, subject, plain_body, html_body):
+                print(sent_api)
+            return jsonify({"response": ai_response})
+
+        except json.JSONDecodeError as e:
+            print("Error parsing JSON:", e)
 
     except Exception as e:
         logging.error(f"Error in /email-checker: {e}")
@@ -974,12 +974,13 @@ def send_email(from_name, from_address, to_address, subject, json_data):
         payload = {
             "from": {"name": from_name, "address": from_address},
             "to": [{"address": to_address}],
-            "subject": "[Re]"+ subject,
+            "subject": "Re:"+ subject,
             "text": text_content,
             "html": html_content
         }
 
         response = requests.post(EMAIL_API_URL, json=payload, headers={"Content-Type": "application/json"})
+        # print(payload)
         response_data = response.json()
 
         if "messageId" in response_data:
