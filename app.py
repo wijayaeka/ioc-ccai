@@ -14,9 +14,8 @@ from flask_mail import Mail, Message
 import requests
 import logging
 from flask_migrate import Migrate
-
-
-
+from zoneinfo import ZoneInfo  # Python 3.9+
+from datetime import datetime
 
 
 
@@ -28,7 +27,7 @@ app = Flask(__name__)
 
 
 # Konfigurasi database MySQL
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("SQLALCHEMY_DATABASE_URI")
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("SQLALCHEMY_DATABASE_URI_DEV")
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
@@ -365,6 +364,8 @@ html_template = """
 """
 # Konfigurasi Logging
 logging.basicConfig(level=logging.INFO)
+now_utc = datetime.utcnow()
+now_wib = now_utc.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo("Asia/Jakarta")).replace(tzinfo=None)
 
 # Konfigurasi OpenAI Client
 openai_client = openai.AzureOpenAI(
@@ -387,7 +388,9 @@ class OpenAIResponse(db.Model):
     usage = db.Column(db.Text, nullable=False)  # Pastikan bisa menyimpan JSON
     prompt_tokens = db.Column(db.Integer, nullable=False)
     total_tokens = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)  # Tambahkan waktu saat insert
+    wib_time = db.Column(db.DateTime)
 
     def __repr__(self):
         return f'<OpenAIResponse {self.model} - {self.created}>'
@@ -401,7 +404,9 @@ class RequestData(db.Model):
     session_id = db.Column(db.String(100), nullable=False)
     service_credential_id = db.Column(db.String(50), nullable=False)
     text_classification_id = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
     text = db.Column(db.Text, nullable=False)
+    wib_time = db.Column(db.DateTime)
 
     # Relasi ke ResponseData
     responses = db.relationship('ResponseData', backref='request', cascade="all, delete-orphan")
@@ -429,7 +434,8 @@ class ResponseData(db.Model):
     symptom = db.Column(db.String(255))
     type_incident = db.Column(db.String(100))
     urgency = db.Column(db.String(100))
-
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    wib_time = db.Column(db.DateTime)
 
 
 # Model untuk menyimpan data yang diterima dari API GET
@@ -456,6 +462,8 @@ class ReceivedData(db.Model):
     symptom = db.Column(db.String(255))
     type_incident = db.Column(db.String(100))
     urgency = db.Column(db.String(100))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)  # UTC
+    wib_time = db.Column(db.DateTime)
 
 
 class EmailLog(db.Model):
@@ -464,6 +472,8 @@ class EmailLog(db.Model):
     message_id = db.Column(db.String(255), nullable=False)
     send_at = db.Column(db.DateTime, nullable=False)
     queue_id = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    wib_time = db.Column(db.DateTime)
 
 class EmailResponse(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -476,6 +486,8 @@ class EmailResponse(db.Model):
     message_html = db.Column(db.Text)
     date_middleware = db.Column(db.DateTime)
     date_origin = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    wib_time = db.Column(db.DateTime)
 
     def __init__(self, account, message_id, from_id, from_name, subject, message_text, message_html, date_middleware, date_origin):
         self.account = account
@@ -506,6 +518,8 @@ class IncomingEmail(db.Model):
     to = db.Column(db.String(255))
     uid = db.Column(db.Integer)
     try_attempt = db.Column(db.Integer)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    wib_time = db.Column(db.DateTime)
 
     def __init__(self, **kwargs):
         for field in kwargs:
@@ -517,6 +531,20 @@ class LogWebhookEmail(db.Model):
     # id = db.Column(db.String(20), primary_key=True)
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     content = db.Column(db.Text)
+    wib_time = db.Column(db.DateTime)
+
+    def __init__(self, **kwargs):
+        for field in kwargs:
+            if hasattr(self, field):
+                setattr(self, field, kwargs[field])
+
+
+class LogErrorApp(db.Model):
+    # id = db.Column(db.String(20), primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    inputdata = db.Column(db.Text)
+    error_message = db.Column(db.Text)
+    wib_time = db.Column(db.DateTime)
 
     def __init__(self, **kwargs):
         for field in kwargs:
@@ -526,7 +554,7 @@ class LogWebhookEmail(db.Model):
 
 # Buat tabel di database
 with app.app_context():
-    # db.drop_all()  # Hapus tabel lama jika perlu
+    db.drop_all()  # Hapus tabel lama jika perlu
     db.create_all()
 
 def clean_json(json_str):
@@ -559,7 +587,8 @@ def save_openai_response(response_data):
                 usage=json.dumps(usage_dict),  # Simpan dalam bentuk JSON
                 prompt_tokens=data["prompt_tokens"],
                 total_tokens=data["total_tokens"],
-                timestamp=datetime.utcnow()
+                timestamp=datetime.utcnow(),
+                wib_time=now_wib
             )
             db.session.add(openai_response)
         db.session.commit()
@@ -571,13 +600,14 @@ def predict():
         text = data.get("message")
         if not text:
             return jsonify({"error": "Message is required"}), 400
-
+        # print(data)
         request_entry = RequestData(
                 auth_id=data["auth_id"],
                 session_id=data["session_id"],
-                service_credential_id=data["service_creadential_id"],
+                service_credential_id=data["service_credential_id"],
                 text_classification_id=data["text_classification_id"],
-                text=data["message"]
+                text=data["message"],
+                 wib_time=now_wib
         )
         db.session.add(request_entry)
         db.session.commit()
@@ -606,7 +636,8 @@ def predict():
             subject=label_info2["response"]["subject"],
             symptom=label_info2["response"]["symptom"],
             type_incident=label_info2["response"]["type_incident"],
-            urgency=label_info2["response"]["urgency"]
+            urgency=label_info2["response"]["urgency"],
+            wib_time=now_wib
         )
         db.session.add(response_entry)
         db.session.commit()
@@ -617,15 +648,29 @@ def predict():
         return jsonify({"error": str(e)}), 500
 
 
+def parse_date(date_str, fallback_format="%Y-%m-%d %H:%M:%S"):
+    try:
+        return datetime.strptime(date_str.strip(), fallback_format)
+    except Exception:
+        return None
+
 @app.route("/email-checker", methods=["POST"])
 def email_checker():
     try:
         email_content = request.form.get("emailContent") or request.data.decode("utf-8")
         if not email_content:
+            logingApp = LogErrorApp(
+                inputdata="email-checker",
+                error_message = "message_content_null",
+                wib_time=now_wib
+            )
+            db.session.add(logingApp)
+            db.session.commit()
             return jsonify({"error": "emailContent is required"}), 400
 
         loging = LogWebhookEmail(
-            content=email_content
+            content=email_content,
+            wib_time=now_wib
         )
         db.session.add(loging)
         db.session.commit()
@@ -633,12 +678,18 @@ def email_checker():
         cleaned_content = clean_json(email_content)
         email_data = json.loads(cleaned_content)
         in_reply_to = email_data.get("in_reply_to")
-        # if in_reply_to:
-        #     # print("Email Reply")
-        #     print("Email Reply")
-        #     return jsonify({"error": "email is reply"})
-        # else:
-        print("kosong")
+        # print("kosong")
+
+        message_id = email_data.get("message_id")
+        if not message_id:
+            logingApp = LogErrorApp(
+                inputdata="email-checker",
+                error_message = "message_id is null"
+            )
+            db.session.add(logingApp)
+            db.session.commit()
+            return jsonify({"error": "message_id is null"}), 400
+
         # Ekstrak dan bersihkan data penting
         from_raw = email_data.get("from", "")
         if "<" in from_raw and ">" in from_raw:
@@ -649,22 +700,15 @@ def email_checker():
             from_id = email_data.get("mail_from")
 
             # Parse tanggal dengan try-except fallback
-        from datetime import datetime
-
-        def parse_date(date_str, fallback_format="%Y-%m-%d %H:%M:%S"):
-            try:
-                return datetime.strptime(date_str.strip(), fallback_format)
-            except Exception:
-                return None
-
             # Buat objek model
-            email = IncomingEmail(
+        email = IncomingEmail(
                 message_id=email_data.get("message_id"),
                 from_id=from_id,
                 from_name=from_name,
                 subject=email_data.get("subject"),
-                # rcpt_to=email_data.get("subject"),
+                rcpt_to=email_data.get("rcpt_to"),
                 account=email_data.get("account"),
+                mail_from=email_data.get("mail_from"),
                 tenant_code=email_data.get("tenant_code"),
                 in_reply_to=email_data.get("in_reply_to"),
                 plain_body=email_data.get("plain_body"),
@@ -680,9 +724,11 @@ def email_checker():
                 message_html=email_data.get("html_body", ""),
                 date_middleware=parse_date(email_data.get("date_imap_reads"), "%Y-%m-%d %H: %M: %S"),
                 date_origin=parse_date(email_data.get("timestamp")),
-            )
-            db.session.add(email)
-            db.session.commit()
+                wib_time=now_wib
+        )
+        # print(email)
+        db.session.add(email)
+        db.session.commit()
 
         try:
             email_data = json.loads(cleaned_content)
@@ -697,40 +743,40 @@ def email_checker():
 
             prompt =f"""
                 Ekstrak informasi berikut dari konten email berikut:
-    
+
                 \"\"\"{sanitized_content}\"\"\"
-    
+
                 Periksa apakah konten email memiliki semua informasi berikut menggunakan pendekatan **similarity matching**:
-    
+
                 ---
-    
+
                 ### **Instruksi Ekstraksi Data (Rule Baru):**
                 Identifikasi dan ekstrak informasi berikut:
-    
+
                 1. **Jenis Laporan** (Gangguan/Permintaan)
                 2. **Nama Layanan** (Nama layanan yang disebutkan dalam email)
                 3. **No. Telp Pelapor** (Nomor telepon dari pelapor)
                 4. **Nama Perangkat/Aplikasi** (Nama perangkat atau aplikasi yang dilaporkan)
                 5. **URL Aplikasi** (URL aplikasi yang dilaporkan - **opsional**)
                 6. **Uraian Permasalahan** (Penjelasan lengkap dan detail permasalahan atau kebutuhan, termasuk jumlah/no. workstation jika relevan)
-    
+
                 ---
-    
+
                 ### **Cara Menentukan "Uraian Permasalahan"**
                 - "Uraian Permasalahan" adalah bagian dalam email yang menjelaskan **tujuan utama pengirim**.
                 - Fokus pada **keluhan, permintaan, atau kebutuhan tindakan**.
                 - Kata kunci umum: "minta", "tolong", "butuh", "kami ingin", "bisa dibantu", "terjadi masalah".
                 - Jika tidak ditemukan, gunakan paragraf terakhir sebagai kandidat uraian.
-    
+
                 ---
-    
+
                 Jika ada informasi yang tidak ditemukan atau kosong, catat dalam daftar **missing_fields**, kecuali **URL Aplikasi** yang **boleh kosong**.
-    
+
                 ---
-    
+
                 ### **Format Jawaban:**
                 Jika semua data ditemukan:
-    
+
                 ```json
                 {{
                   "sender": {email_sender},
@@ -768,7 +814,7 @@ def email_checker():
                     }}
                   ]
                 }}
-    
+
         Jika ada data yang tidak ditemukan:
                 {{
                       "sender": {email_sender},
@@ -848,16 +894,22 @@ def email_checker():
                 print(status)
                 sent_email = send_email("IOC", "threeatech.development@gmail.com", email_sender, subject, ai_response)
             elif status == "Lengkap":
-                print(status)
+                # print(status)
                 sent_api = send_email_to_api(message_id, sender_name, email_sender, subject, plain_body, html_body)
                                # send_email_to_api(message_id, sender, mail_from, subject, plain_body, html_body):
-                print(sent_api)
+                # print(sent_api)
             return jsonify({"response": ai_response})
 
         except json.JSONDecodeError as e:
             print("Error parsing JSON:", e)
-
+        # return jsonify({"response": "OK"})
     except Exception as e:
+        logingApp = LogErrorApp(
+            inputdata="email-checker",
+            error_message="error: " + str(e)
+        )
+        db.session.add(logingApp)
+        db.session.commit()
         logging.error(f"Error in /email-checker: {e}")
         return jsonify({"error": str(e)}), 500
 
@@ -869,6 +921,12 @@ def receive_data():
 
         # Pastikan data memiliki format yang benar
         if not data or "auth_id" not in data or "data" not in data or "session_id" not in data:
+            logingApp = LogErrorApp(
+                inputdata="receive_data",
+                error_message="Invalid data format"
+            )
+            db.session.add(logingApp)
+            db.session.commit()
             return jsonify({"error": "Invalid data format"}), 400
 
         # Simpan data ke dalam tabel ReceivedData
@@ -878,7 +936,7 @@ def receive_data():
             request_id=0,
             category=data["data"]["category"],
             category_id=data["data"]["category_id"],
-            # id_layanan=data["data"]["id_layanan"],
+            id_layanan=data["data"]["layanan"],
             detail_sub_category=data["data"]["detail_sub_category"],
             group_level=data["data"]["group_level"],
             impact=data["data"]["impact"],
@@ -892,7 +950,8 @@ def receive_data():
             subject=data["data"]["subject"],
             symptom=data["data"]["symptom"],
             type_incident=data["data"]["type_incident"],
-            urgency=data["data"]["urgency"]
+            urgency=data["data"]["urgency"],
+            wib_time=now_wib
         )
 
         db.session.add(received_entry)
@@ -901,7 +960,13 @@ def receive_data():
         return jsonify({"message": "Data received and saved successfully", "received_id": received_entry.id}), 200
 
     except Exception as e:
-        db.session.rollback()
+        logingApp = LogErrorApp(
+            inputdata="receive_data",
+            error_message=str(e)
+        )
+        db.session.add(logingApp)
+        db.session.commit()
+        # db.session.rollback()
         return jsonify({"error": str(e)}), 500
 
 @app.route('/send_email', methods=['GET'])
@@ -980,7 +1045,7 @@ def send_email(from_name, from_address, to_address, subject, json_data):
             "text": text_content,
             "html": html_content
         }
-        print(payload)
+        # print(payload)
         response = requests.post(EMAIL_API_URL, json=payload, headers={"Content-Type": "application/json"})
         # print(payload)
         response_data = response.json()
@@ -993,7 +1058,8 @@ def send_email(from_name, from_address, to_address, subject, json_data):
                 response=response_data.get("response", "Unknown"),
                 message_id=message_id,
                 send_at=send_at,
-                queue_id=response_data.get("queueId", "Unknown")
+                queue_id=response_data.get("queueId", "Unknown"),
+                wib_time = now_wib
             )
 
             db.session.add(email_log)
@@ -1005,17 +1071,26 @@ def send_email(from_name, from_address, to_address, subject, json_data):
     except Exception as e:
         db.session.add(email_log)
         db.session.commit()
+        logingApp = LogErrorApp(
+            inputdata="send_email",
+            error_message= f"Error in sending email: {str(e)}"
+        )
+        db.session.add(logingApp)
+        db.session.commit()
         logging.error(f"Error in sending email: {str(e)}")
         return {"error": str(e)}
 
+
 def save_email_response(response_data):
+    # print(response_data)
     try:
-        if response_data.get("status") != 200:
+        if response_data.get("status") != 200 and response_data.get("status") != True:
             return {"error": "Invalid response from API"}
 
-        email_data = response_data.get("data", {})
+        # PARSE JSON DARI STRING KE DICT
+        email_data = json.loads(response_data.get("data", "{}"))
+        # print(email_data)
 
-        # Buat objek EmailResponse
         email_response = EmailResponse(
             account=email_data.get("account"),
             message_id=email_data.get("message_id"),
@@ -1026,9 +1101,9 @@ def save_email_response(response_data):
             message_html=email_data.get("message_html"),
             date_middleware=datetime.fromisoformat(email_data.get("date_middleware").replace("Z", "")) if email_data.get("date_middleware") else None,
             date_origin=datetime.fromisoformat(email_data.get("date_origin").replace("Z", "")) if email_data.get("date_origin") else None,
+            wib_time=now_wib
         )
 
-        # Simpan ke database
         db.session.add(email_response)
         db.session.commit()
 
@@ -1055,6 +1130,12 @@ def send_email_to_api(message_id,sender, mail_from,subject,plain_body,html_body)
 
     # Jika ada field yang kosong, kembalikan error
     if missing_fields:
+        logingApp = LogErrorApp(
+            inputdata="send_to_omnix",
+            error_message= "missing_fields"+ str(missing_fields)
+        )
+        db.session.add(logingApp)
+        db.session.commit()
         return {"error": "Missing required fields", "missing_fields": missing_fields}
     else:
         # return response.json("{'status':'ok'}")
@@ -1100,6 +1181,12 @@ def send_email_to_api(message_id,sender, mail_from,subject,plain_body,html_body)
             save_email_response(api_response)
             return response.json()
         except requests.RequestException as e:
+            logingApp = LogErrorApp(
+                inputdata="send_to_omnix",
+                error_message= "error send to omnix"+response.text
+            )
+            db.session.add(logingApp)
+            db.session.commit()
             return {"error": str(e),"Response body": response.text}
 
 
