@@ -554,7 +554,7 @@ class LogErrorApp(db.Model):
 
 # Buat tabel di database
 with app.app_context():
-    db.drop_all()  # Hapus tabel lama jika perlu
+    # db.drop_all()  # Hapus tabel lama jika perlu
     db.create_all()
 
 def clean_json(json_str):
