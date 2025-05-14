@@ -489,7 +489,7 @@ class EmailResponse(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     wib_time = db.Column(db.DateTime)
 
-    def __init__(self, account, message_id, from_id, from_name, subject, message_text, message_html, date_middleware, date_origin):
+    def __init__(self, account, message_id, from_id, from_name, subject, message_text, message_html, date_middleware, date_origin,wib_time):
         self.account = account
         self.message_id = message_id
         self.from_id = from_id
@@ -499,6 +499,7 @@ class EmailResponse(db.Model):
         self.message_html = message_html
         self.date_middleware = date_middleware
         self.date_origin = date_origin
+        self.wib_time = wib_time
 
 class IncomingEmail(db.Model):
     # id = db.Column(db.String(20), primary_key=True)
@@ -1110,7 +1111,13 @@ def save_email_response(response_data):
         return jsonify({"message": "Email response saved successfully", "id": email_response.id})
 
     except Exception as e:
-        db.session.rollback()
+        # db.session.rollback()
+        logingApp = LogErrorApp(
+            inputdata="send_to_omnix",
+            error_message="error save data omnix" + str(e)
+        )
+        db.session.add(logingApp)
+        db.session.commit()
         return jsonify({"error": str(e)})
 
 def send_email_to_api(message_id,sender, mail_from,subject,plain_body,html_body):
@@ -1178,7 +1185,8 @@ def send_email_to_api(message_id,sender, mail_from,subject,plain_body,html_body)
             response.raise_for_status()  # Jika ada error HTTP, akan raise exception
             api_response = response.json()
             # print(api_response)
-            save_email_response(api_response)
+            save2 = save_email_response(api_response)
+            print(save2)
             return response.json()
         except requests.RequestException as e:
             logingApp = LogErrorApp(
