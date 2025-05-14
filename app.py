@@ -396,6 +396,21 @@ class OpenAIResponse(db.Model):
         return f'<OpenAIResponse {self.model} - {self.created}>'
 
 
+class EmailChecker(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    email_sender = db.Column(db.Text, nullable=False)
+    message_id = db.Column(db.Text, nullable=False)
+    created = db.Column(db.BigInteger, nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    status = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)  # Tambahkan waktu saat insert
+    wib_time = db.Column(db.DateTime)
+
+    def __repr__(self):
+        return f'<EmailChecker {self.model} - {self.created}>'
+
+
 # Model Database
 class RequestData(db.Model):
     __tablename__ = 'request_data'
@@ -593,6 +608,34 @@ def save_openai_response(response_data):
             )
             db.session.add(openai_response)
         db.session.commit()
+
+
+# class EmailChecker(db.Model):
+#     id = db.Column(db.Integer, primary_key=True)
+#     email_sender = db.Column(db.Text, nullable=False)
+#     message_id = db.Column(db.Text, nullable=False)
+#     created = db.Column(db.BigInteger, nullable=False)
+#     content = db.Column(db.Text, nullable=False)
+#     status = db.Column(db.Text, nullable=False)
+#     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+#     timestamp = db.Column(db.DateTime, default=datetime.utcnow)  # Tambahkan waktu saat insert
+#     wib_time = db.Column(db.DateTime)
+
+def save_email_checker(response_data):
+    with app.app_context():
+        for data in response_data:
+            email_checker = EmailChecker(
+                email_sender=data["email_sender"],
+                content=data["content"],
+                message_id = data["message_id"],
+                created=data["created"],
+                status=data["status"],
+                timestamp=datetime.utcnow(),
+                wib_time=now_wib
+            )
+            db.session.add(email_checker)
+        db.session.commit()
+
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -891,6 +934,14 @@ def email_checker():
                 return jsonify({"error": "Invalid JSON response", "raw": clean_json_str}), 500
 
             status = ai_response["status"]
+            email_check = [{
+                        "email_sender": email_sender,
+                        "message_id": cleaned_message_id,
+                        "content": plain_body,
+                        "created": response.created,
+                        "status": status
+            }]
+            save_email_checker(email_check)
             if status == "Tidak Lengkap":
                 print(status)
                 sent_email = send_email("IOC", "threeatech.development@gmail.com", email_sender, subject, ai_response)
