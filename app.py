@@ -649,7 +649,7 @@ def predict():
         request_entry = RequestData(
                 auth_id=data["auth_id"],
                 session_id=data["session_id"],
-                service_credential_id=data["service_credential_id"],
+                service_credential_id= "kip",
                 text_classification_id=data["text_classification_id"],
                 text=data["message"],
                  wib_time=now_wib
