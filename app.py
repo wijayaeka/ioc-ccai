@@ -16,6 +16,7 @@ import logging
 from flask_migrate import Migrate
 from zoneinfo import ZoneInfo  # Python 3.9+
 from datetime import datetime
+import traceback
 
 
 
@@ -424,13 +425,13 @@ class RequestData(db.Model):
     wib_time = db.Column(db.DateTime)
 
     # Relasi ke ResponseData
-    responses = db.relationship('ResponseData', backref='request', cascade="all, delete-orphan")
+    # responses = db.relationship('ResponseData', backref='request', cascade="all, delete-orphan")
 
 
 class ResponseData(db.Model):
     __tablename__ = 'response_data'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    request_id = db.Column(db.Integer, db.ForeignKey('request_data.id', ondelete="CASCADE"), nullable=False)
+    request_id = db.Column(db.String(50), nullable=False)
     auth_id = db.Column(db.String(50), nullable=False)  # Relasi ke auth_id dari RequestData
     session_id = db.Column(db.String(100), nullable=False)  # Relasi ke session_id dari RequestData
     category = db.Column(db.String(100))
@@ -683,8 +684,16 @@ def predict():
             urgency=label_info2["response"]["urgency"],
             wib_time=now_wib
         )
-        db.session.add(response_entry)
-        db.session.commit()
+        # db.session.add(response_entry)
+        # db.session.commit()
+        try:
+            db.session.add(response_entry)
+            db.session.commit()
+            print("Berhasil commit ResponseData, ID:", response_entry.id)
+        except Exception as e:
+            db.session.rollback()
+            traceback.print_exc()
+            print("Gagal menyimpan ke database:", e)
         return jsonify(label_info2)
 
     except Exception as e:
